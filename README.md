@@ -30,8 +30,9 @@ before a public deployment.
 1. Commit this folder and push the `main` branch to GitHub.
 2. Create a Railway service from that repository.
 3. Add `TD_TOKEN` as a long random secret.
-4. Add `ALLOWED_ORIGINS` with the public Railway origin, for example
-   `https://your-service.up.railway.app`.
+4. Add `ALLOWED_ORIGINS` only when another browser origin should open the
+   controller socket, for example a separate preview site. The Railway page can
+   connect from its own origin automatically.
 5. Set `NODE_ENV=production`.
 6. Generate a Railway domain or attach a custom domain.
 

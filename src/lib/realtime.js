@@ -43,7 +43,7 @@ export class RealtimeHub {
 
     const role = url.searchParams.get("role");
     const isTouchDesigner = role === "touchdesigner" && tokenMatches(url.searchParams.get("token"));
-    const isController = role === "controller" && isBrowserOriginAllowed(request.headers.origin);
+    const isController = role === "controller" && isBrowserOriginAllowed(request.headers.origin, request.headers.host);
 
     if (!isTouchDesigner && !isController) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");

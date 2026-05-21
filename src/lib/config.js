@@ -17,9 +17,17 @@ export const config = {
   isProduction
 };
 
-export function isBrowserOriginAllowed(origin) {
+export function isBrowserOriginAllowed(origin, host) {
   if (!origin) {
     return !config.isProduction;
+  }
+
+  try {
+    if (host && new URL(origin).host === host) {
+      return true;
+    }
+  } catch {
+    return false;
   }
 
   if (!config.isProduction && config.allowedOrigins.size === 0) {
