@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Marionetas MIDI</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Coro colectivo</p>
+          <h1>Marionetas MIDI</h1>
+        </div>
+        <div class="connection">
+          <span id="socketDot" class="dot" aria-hidden="true"></span>
+          <span id="socketLabel">Conectando</span>
+        </div>
+      </header>
+
+      <section class="stage" aria-labelledby="chooseTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Test manual</p>
+            <h2 id="chooseTitle">Elige tu marioneta</h2>
+          </div>
+          <p id="touchDesignerState" class="td-state">TouchDesigner sin conectar</p>
+        </div>
+        <div id="puppetGrid" class="puppet-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="controller" class="controller" hidden>
+        <div class="section-heading selected">
+          <div>
+            <p id="selectedRole" class="eyebrow">Marioneta</p>
+            <h2 id="selectedTitle">Control</h2>
+          </div>
+          <button id="changePuppet" class="icon-button" type="button" title="Cambiar marioneta" aria-label="Cambiar marioneta">
+            <span aria-hidden="true">&#8635;</span>
+          </button>
+        </div>
+
+        <div class="control-layout">
+          <section class="surface notes-surface" aria-labelledby="notesTitle">
+            <h3 id="notesTitle">Notas</h3>
+            <div id="notePads" class="note-pads"></div>
+            <button id="energyButton" class="energy-button" type="button">Energia del grupo</button>
+          </section>
+
+          <section class="surface" aria-labelledby="motionTitle">
+            <h3 id="motionTitle">Movimiento</h3>
+            <div id="motionPad" class="motion-pad" role="application" aria-label="Panel tactil de movimiento">
+              <span id="motionCursor" class="motion-cursor"></span>
+            </div>
+          </section>
+
+          <section class="surface parameter-surface" aria-labelledby="paramsTitle">
+            <h3 id="paramsTitle">Expresion</h3>
+            <label>
+              <span>Intensidad</span>
+              <input data-control="intensity" type="range" min="0" max="1" step="0.01" value="0.72">
+            </label>
+            <label>
+              <span>Volumen</span>
+              <input data-control="volume" type="range" min="0" max="1" step="0.01" value="0.8">
+            </label>
+            <label>
+              <span>Efecto</span>
+              <input data-control="effect" type="range" min="0" max="1" step="0.01" value="0.25">
+            </label>
+            <label>
+              <span>Pitch</span>
+              <input data-control="pitch" type="range" min="-1" max="1" step="0.01" value="0">
+            </label>
+          </section>
+        </div>
+      </section>
+
+      <p id="notice" class="notice" role="status"></p>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+

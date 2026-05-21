@@ -1,0 +1,19 @@
+{
+  "name": "marionetas-midi-web-controller",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mobile WebSocket controllers for a five-puppet TouchDesigner and Ableton ensemble.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
+

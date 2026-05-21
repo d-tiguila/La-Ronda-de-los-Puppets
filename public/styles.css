@@ -1,0 +1,329 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b1013;
+  --surface: #151d21;
+  --surface-strong: #1c282d;
+  --line: #31434a;
+  --text: #f4f0e6;
+  --muted: #b4c0bd;
+  --accent: #f56f5c;
+  --accent-2: #40b3a2;
+  --warning: #f2bf4b;
+  font-family: Inter, Avenir, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(160deg, rgba(64, 179, 162, 0.18), transparent 34rem),
+    radial-gradient(circle at 84% 10%, rgba(245, 111, 92, 0.2), transparent 22rem),
+    var(--bg);
+  color: var(--text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.app {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) clamp(16px, 4vw, 48px) max(24px, env(safe-area-inset-bottom));
+}
+
+.topbar,
+.section-heading,
+.puppet-card,
+.surface {
+  border: 1px solid var(--line);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px clamp(16px, 3vw, 28px);
+  border-radius: 8px;
+  background: rgba(21, 29, 33, 0.86);
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(1.5rem, 3vw, 2.35rem);
+  letter-spacing: 0;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 1.25rem;
+  letter-spacing: 0;
+}
+
+h3 {
+  margin-bottom: 14px;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.connection,
+.td-state,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 9px 12px;
+  color: var(--muted);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.dot.online {
+  background: var(--accent-2);
+}
+
+.dot.offline {
+  background: var(--accent);
+}
+
+.stage,
+.controller {
+  margin-top: 18px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px clamp(14px, 3vw, 22px);
+  border-radius: 8px;
+  background: rgba(21, 29, 33, 0.76);
+}
+
+.section-heading.selected {
+  border-left: 5px solid var(--puppet-color, var(--accent));
+}
+
+.puppet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.puppet-card {
+  display: grid;
+  min-height: 168px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.puppet-card::before {
+  width: 42px;
+  height: 42px;
+  margin-bottom: auto;
+  border-radius: 50%;
+  background:
+    linear-gradient(90deg, transparent 45%, rgba(11, 16, 19, 0.86) 45% 55%, transparent 55%),
+    var(--puppet-color);
+  content: "";
+}
+
+.puppet-card strong {
+  display: block;
+  font-size: 1.35rem;
+  letter-spacing: 0;
+}
+
+.puppet-card span {
+  color: var(--muted);
+}
+
+.puppet-card:hover,
+.puppet-card:focus-visible {
+  border-color: var(--puppet-color);
+  background: var(--surface-strong);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.puppet-card[disabled] {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+}
+
+.icon-button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 1.4rem;
+}
+
+.control-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 1fr) minmax(240px, 0.8fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.surface {
+  min-width: 0;
+  padding: clamp(14px, 2vw, 20px);
+  border-radius: 8px;
+  background: rgba(21, 29, 33, 0.94);
+}
+
+.note-pads {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.note-pad,
+.energy-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.note-pad {
+  display: grid;
+  min-width: 0;
+  min-height: 108px;
+  place-items: center;
+  padding: 10px 4px;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.note-pad.is-playing,
+.energy-button.is-active {
+  border-color: var(--puppet-color, var(--accent));
+  background: var(--puppet-color, var(--accent));
+  color: #071013;
+}
+
+.energy-button {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 10px;
+  font-weight: 800;
+}
+
+.motion-pad {
+  position: relative;
+  min-height: 272px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(244, 240, 230, 0.13) 50%, transparent calc(50% + 1px)),
+    linear-gradient(transparent calc(50% - 1px), rgba(244, 240, 230, 0.13) 50%, transparent calc(50% + 1px)),
+    #0d1518;
+  touch-action: none;
+}
+
+.motion-cursor {
+  position: absolute;
+  top: calc(50% - 15px);
+  left: calc(50% - 15px);
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--puppet-color, var(--accent));
+  border-radius: 50%;
+  background: rgba(244, 240, 230, 0.2);
+  pointer-events: none;
+}
+
+.parameter-surface label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.parameter-surface label + label {
+  margin-top: 18px;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--puppet-color, var(--accent));
+}
+
+.notice {
+  min-height: 24px;
+  margin: 14px 2px 0;
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .control-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .topbar,
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .note-pads {
+    grid-template-columns: repeat(5, minmax(50px, 1fr));
+    overflow-x: auto;
+  }
+
+  .note-pad {
+    min-height: 92px;
+  }
+}
+

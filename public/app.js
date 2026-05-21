@@ -1,0 +1,232 @@
+const puppetGrid = document.querySelector("#puppetGrid");
+const controllerPanel = document.querySelector("#controller");
+const notePads = document.querySelector("#notePads");
+const socketDot = document.querySelector("#socketDot");
+const socketLabel = document.querySelector("#socketLabel");
+const touchDesignerState = document.querySelector("#touchDesignerState");
+const selectedTitle = document.querySelector("#selectedTitle");
+const selectedRole = document.querySelector("#selectedRole");
+const selectedHeading = document.querySelector(".section-heading.selected");
+const notice = document.querySelector("#notice");
+const motionPad = document.querySelector("#motionPad");
+const motionCursor = document.querySelector("#motionCursor");
+const energyButton = document.querySelector("#energyButton");
+
+let socket;
+let state = { puppets: [] };
+let selectedPuppetId = null;
+let assignedPuppetId = null;
+let reconnectTimer = null;
+let motionFrame = null;
+
+function socketUrl() {
+  const url = new URL("/ws?role=controller", window.location.href);
+  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return url;
+}
+
+function setNotice(message) {
+  notice.textContent = message;
+}
+
+function setSocketStatus(label, className) {
+  socketLabel.textContent = label;
+  socketDot.className = `dot ${className}`;
+}
+
+function send(message) {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  }
+}
+
+function sendControl(message) {
+  if (!assignedPuppetId) {
+    return;
+  }
+
+  send({
+    type: "controller.control",
+    puppetId: assignedPuppetId,
+    ...message
+  });
+}
+
+function selectPuppet(puppetId) {
+  selectedPuppetId = puppetId;
+  send({ type: "controller.join", puppetId });
+}
+
+function renderPuppets() {
+  puppetGrid.replaceChildren();
+  touchDesignerState.textContent = state.touchDesignerConnected
+    ? "TouchDesigner conectado"
+    : "TouchDesigner sin conectar";
+
+  state.puppets.forEach((puppet) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "puppet-card";
+    button.style.setProperty("--puppet-color", puppet.color);
+    button.disabled = puppet.occupied && puppet.id !== assignedPuppetId;
+    button.innerHTML = `
+      <span>Marioneta ${puppet.id}</span>
+      <strong>${puppet.role}</strong>
+      <span>Track MIDI ${puppet.midiChannel}</span>
+      <span class="status-pill">${button.disabled ? "Ocupada" : "Disponible"}</span>
+    `;
+    button.addEventListener("click", () => selectPuppet(puppet.id));
+    puppetGrid.append(button);
+  });
+}
+
+function renderController(puppetId) {
+  const puppet = state.puppets.find((item) => item.id === puppetId);
+  if (!puppet) {
+    return;
+  }
+
+  assignedPuppetId = puppet.id;
+  selectedHeading.style.setProperty("--puppet-color", puppet.color);
+  controllerPanel.style.setProperty("--puppet-color", puppet.color);
+  selectedRole.textContent = puppet.role;
+  selectedTitle.textContent = `Marioneta ${puppet.id}`;
+  controllerPanel.hidden = false;
+  notePads.replaceChildren();
+
+  puppet.notes.forEach((midiNote, noteIndex) => {
+    const pad = document.createElement("button");
+    pad.className = "note-pad";
+    pad.type = "button";
+    pad.textContent = midiNote;
+    pad.setAttribute("aria-label", `Nota MIDI ${midiNote}`);
+
+    const gate = (value) => {
+      pad.classList.toggle("is-playing", Boolean(value));
+      sendControl({
+        control: "note",
+        noteIndex,
+        gate: value,
+        velocity: Number(document.querySelector('[data-control="intensity"]').value)
+      });
+    };
+
+    pad.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      pad.setPointerCapture(event.pointerId);
+      gate(1);
+    });
+    pad.addEventListener("pointerup", () => gate(0));
+    pad.addEventListener("pointercancel", () => gate(0));
+    pad.addEventListener("lostpointercapture", () => gate(0));
+    notePads.append(pad);
+  });
+}
+
+function receive(event) {
+  const message = JSON.parse(event.data);
+  if (message.state) {
+    state = message.state;
+    renderPuppets();
+  }
+
+  if (message.type === "controller.assigned") {
+    renderController(message.puppetId);
+    setNotice(`Controlando marioneta ${message.puppetId}.`);
+  }
+
+  if (message.type === "server.error" && message.code === "puppet_busy") {
+    setNotice(`La marioneta ${message.puppetId} ya tiene controlador.`);
+  }
+
+  if (message.type === "server.error" && message.code === "invalid_message") {
+    setNotice("El servidor rechazo un control fuera del protocolo.");
+  }
+}
+
+function connect() {
+  clearTimeout(reconnectTimer);
+  setSocketStatus("Conectando", "");
+  socket = new WebSocket(socketUrl());
+
+  socket.addEventListener("open", () => {
+    setSocketStatus("En linea", "online");
+    setNotice("Listo para asignar una marioneta.");
+    if (selectedPuppetId) {
+      selectPuppet(selectedPuppetId);
+    }
+  });
+
+  socket.addEventListener("message", receive);
+  socket.addEventListener("close", () => {
+    assignedPuppetId = null;
+    setSocketStatus("Reconectando", "offline");
+    setNotice("Se perdio la conexion. Reintentando.");
+    reconnectTimer = setTimeout(connect, 1200);
+  });
+}
+
+function updateMotion(event) {
+  const bounds = motionPad.getBoundingClientRect();
+  const x = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+  const y = Math.min(1, Math.max(0, 1 - (event.clientY - bounds.top) / bounds.height));
+  motionCursor.style.left = `calc(${x * 100}% - 15px)`;
+  motionCursor.style.top = `calc(${(1 - y) * 100}% - 15px)`;
+
+  if (!motionFrame) {
+    motionFrame = requestAnimationFrame(() => {
+      sendControl({ control: "motion", x, y });
+      motionFrame = null;
+    });
+  }
+}
+
+document.querySelector("#changePuppet").addEventListener("click", () => {
+  send({ type: "controller.release" });
+  assignedPuppetId = null;
+  selectedPuppetId = null;
+  controllerPanel.hidden = true;
+  setNotice("Elige otra marioneta disponible.");
+  renderPuppets();
+});
+
+document.querySelectorAll("[data-control]").forEach((slider) => {
+  slider.addEventListener("input", () => {
+    sendControl({
+      control: slider.dataset.control,
+      value: Number(slider.value)
+    });
+  });
+});
+
+motionPad.addEventListener("pointerdown", (event) => {
+  motionPad.setPointerCapture(event.pointerId);
+  updateMotion(event);
+});
+motionPad.addEventListener("pointermove", (event) => {
+  if (event.buttons) {
+    updateMotion(event);
+  }
+});
+
+function sendEnergy(active) {
+  energyButton.classList.toggle("is-active", Boolean(active));
+  sendControl({ control: "energy", active });
+}
+
+energyButton.addEventListener("pointerdown", (event) => {
+  energyButton.setPointerCapture(event.pointerId);
+  sendEnergy(1);
+});
+energyButton.addEventListener("pointerup", () => sendEnergy(0));
+energyButton.addEventListener("pointercancel", () => sendEnergy(0));
+energyButton.addEventListener("lostpointercapture", () => sendEnergy(0));
+
+fetch("/api/state")
+  .then((response) => response.json())
+  .then((snapshot) => {
+    state = snapshot;
+    renderPuppets();
+  });
+
+connect();
