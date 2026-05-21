@@ -50,15 +50,35 @@ export function normalizeControl(message, assignedPuppetId) {
     const gate = message.gate === 1 ? 1 : message.gate === 0 ? 0 : null;
     const velocity = numberInRange(message.velocity, 0, 1);
 
-    if (!Number.isInteger(noteIndex) || noteIndex < 0 || noteIndex >= puppet.notes.length || gate === null) {
+    const notes = puppet.pads.flatMap((pad) => pad.notes);
+    if (!Number.isInteger(noteIndex) || noteIndex < 0 || noteIndex >= notes.length || gate === null) {
       return null;
     }
 
     return {
       event: gate ? "note_on" : "note_off",
       noteIndex,
-      midiNote: puppet.notes[noteIndex],
+      midiNote: notes[noteIndex],
       velocity: velocity ?? 0.75
+    };
+  }
+
+  if (message.control === "pad") {
+    const padIndex = Number.parseInt(message.padIndex, 10);
+    const gate = message.gate === 1 ? 1 : message.gate === 0 ? 0 : null;
+    const velocity = numberInRange(message.velocity, 0, 1);
+    const pad = puppet.pads[padIndex];
+
+    if (!Number.isInteger(padIndex) || !pad || gate === null) {
+      return null;
+    }
+
+    return {
+      event: gate ? "note_on" : "note_off",
+      padIndex,
+      padLabel: pad.label,
+      midiNotes: pad.notes,
+      velocity: velocity ?? 0.82
     };
   }
 
@@ -103,4 +123,3 @@ export function normalizeControl(message, assignedPuppetId) {
 
   return null;
 }
-

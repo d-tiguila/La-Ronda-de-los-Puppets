@@ -104,14 +104,20 @@ export class RealtimeHub {
     }
 
     const puppet = PUPPETS.find((item) => item.id === controller.puppetId);
-    this.broadcastToTouchDesigner({
-      type: "puppet.control",
-      timestamp: Date.now(),
-      puppetId: puppet.id,
-      role: puppet.role,
-      midiChannel: puppet.channel,
-      controllerId: controller.id,
-      ...control
+    const controls = control.midiNotes
+      ? control.midiNotes.map((midiNote) => ({ ...control, midiNote, midiNotes: undefined }))
+      : [control];
+
+    controls.forEach((noteControl) => {
+      this.broadcastToTouchDesigner({
+        type: "puppet.control",
+        timestamp: Date.now(),
+        puppetId: puppet.id,
+        role: puppet.role,
+        midiChannel: puppet.channel,
+        controllerId: controller.id,
+        ...noteControl
+      });
     });
   }
 
@@ -142,7 +148,7 @@ export class RealtimeHub {
       return;
     }
 
-    puppet.notes.forEach((midiNote, noteIndex) => {
+    [...new Set(puppet.pads.flatMap((pad) => pad.notes))].forEach((midiNote, noteIndex) => {
       this.broadcastToTouchDesigner({
         type: "puppet.control",
         timestamp: Date.now(),
@@ -185,7 +191,7 @@ export class RealtimeHub {
         role: puppet.role,
         midiChannel: puppet.channel,
         color: puppet.color,
-        notes: puppet.notes,
+        pads: puppet.pads,
         occupied: occupiedIds.has(puppet.id)
       })),
       controllerCount: this.controllers.size,

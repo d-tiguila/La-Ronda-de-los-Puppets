@@ -13,7 +13,17 @@ test("maps note indexes to the puppet MIDI notes", () => {
       { type: "controller.control", puppetId: 1, control: "note", noteIndex: 3, gate: 1, velocity: 0.9 },
       1
     ),
-    { event: "note_on", noteIndex: 3, midiNote: 67, velocity: 0.9 }
+    { event: "note_on", noteIndex: 3, midiNote: 62, velocity: 0.9 }
+  );
+});
+
+test("maps chord pad gates to MIDI note groups", () => {
+  assert.deepEqual(
+    normalizeControl(
+      { type: "controller.control", puppetId: 1, control: "pad", padIndex: 4, gate: 1, velocity: 0.82 },
+      1
+    ),
+    { event: "note_on", padIndex: 4, padLabel: "G", midiNotes: [67, 71, 74], velocity: 0.82 }
   );
 });
 
@@ -27,4 +37,3 @@ test("clamps parameters and rejects controls from another puppet", () => {
     null
   );
 });
-

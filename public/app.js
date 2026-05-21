@@ -8,8 +8,6 @@ const selectedTitle = document.querySelector("#selectedTitle");
 const selectedRole = document.querySelector("#selectedRole");
 const selectedHeading = document.querySelector(".section-heading.selected");
 const notice = document.querySelector("#notice");
-const motionPad = document.querySelector("#motionPad");
-const motionCursor = document.querySelector("#motionCursor");
 const energyButton = document.querySelector("#energyButton");
 
 let socket;
@@ -17,8 +15,7 @@ let state = { puppets: [] };
 let selectedPuppetId = null;
 let assignedPuppetId = null;
 let reconnectTimer = null;
-let motionFrame = null;
-const activeNotes = new Set();
+const activePads = new Set();
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -54,15 +51,15 @@ function sendControl(message) {
 }
 
 function releaseAllNotes() {
-  activeNotes.forEach((noteIndex) => {
+  activePads.forEach((padIndex) => {
     sendControl({
-      control: "note",
-      noteIndex,
+      control: "pad",
+      padIndex,
       gate: 0,
       velocity: 0
     });
   });
-  activeNotes.clear();
+  activePads.clear();
   notePads.querySelectorAll(".is-playing").forEach((pad) => pad.classList.remove("is-playing"));
 }
 
@@ -108,12 +105,15 @@ function renderController(puppetId) {
   controllerPanel.hidden = false;
   notePads.replaceChildren();
 
-  puppet.notes.forEach((midiNote, noteIndex) => {
+  puppet.pads.forEach((chordPad, padIndex) => {
     const pad = document.createElement("button");
     pad.className = "note-pad";
     pad.type = "button";
-    pad.textContent = midiNote;
-    pad.setAttribute("aria-label", `Nota MIDI ${midiNote}`);
+    pad.innerHTML = `
+      <strong>${chordPad.label}</strong>
+      <span>${chordPad.notes.join(" . ")}</span>
+    `;
+    pad.setAttribute("aria-label", `Acorde ${chordPad.label}, notas MIDI ${chordPad.notes.join(", ")}`);
 
     let isPlaying = false;
     const gate = (value) => {
@@ -123,16 +123,16 @@ function renderController(puppetId) {
 
       isPlaying = Boolean(value);
       if (isPlaying) {
-        activeNotes.add(noteIndex);
+        activePads.add(padIndex);
       } else {
-        activeNotes.delete(noteIndex);
+        activePads.delete(padIndex);
       }
       pad.classList.toggle("is-playing", Boolean(value));
       sendControl({
-        control: "note",
-        noteIndex,
+        control: "pad",
+        padIndex,
         gate: value,
-        velocity: Number(document.querySelector('[data-control="intensity"]').value)
+        velocity: 0.82
       });
     };
 
@@ -184,27 +184,12 @@ function connect() {
 
   socket.addEventListener("message", receive);
   socket.addEventListener("close", () => {
-    activeNotes.clear();
+    activePads.clear();
     assignedPuppetId = null;
     setSocketStatus("Reconectando", "offline");
     setNotice("Se perdio la conexion. Reintentando.");
     reconnectTimer = setTimeout(connect, 1200);
   });
-}
-
-function updateMotion(event) {
-  const bounds = motionPad.getBoundingClientRect();
-  const x = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-  const y = Math.min(1, Math.max(0, 1 - (event.clientY - bounds.top) / bounds.height));
-  motionCursor.style.left = `calc(${x * 100}% - 15px)`;
-  motionCursor.style.top = `calc(${(1 - y) * 100}% - 15px)`;
-
-  if (!motionFrame) {
-    motionFrame = requestAnimationFrame(() => {
-      sendControl({ control: "motion", x, y });
-      motionFrame = null;
-    });
-  }
 }
 
 document.querySelector("#changePuppet").addEventListener("click", () => {
@@ -215,25 +200,6 @@ document.querySelector("#changePuppet").addEventListener("click", () => {
   controllerPanel.hidden = true;
   setNotice("Elige otra marioneta disponible.");
   renderPuppets();
-});
-
-document.querySelectorAll("[data-control]").forEach((slider) => {
-  slider.addEventListener("input", () => {
-    sendControl({
-      control: slider.dataset.control,
-      value: Number(slider.value)
-    });
-  });
-});
-
-motionPad.addEventListener("pointerdown", (event) => {
-  motionPad.setPointerCapture(event.pointerId);
-  updateMotion(event);
-});
-motionPad.addEventListener("pointermove", (event) => {
-  if (event.buttons) {
-    updateMotion(event);
-  }
 });
 
 function sendEnergy(active) {
