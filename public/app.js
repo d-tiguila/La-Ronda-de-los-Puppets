@@ -18,6 +18,7 @@ let selectedPuppetId = null;
 let assignedPuppetId = null;
 let reconnectTimer = null;
 let motionFrame = null;
+const activeNotes = new Set();
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -50,6 +51,19 @@ function sendControl(message) {
     puppetId: assignedPuppetId,
     ...message
   });
+}
+
+function releaseAllNotes() {
+  activeNotes.forEach((noteIndex) => {
+    sendControl({
+      control: "note",
+      noteIndex,
+      gate: 0,
+      velocity: 0
+    });
+  });
+  activeNotes.clear();
+  notePads.querySelectorAll(".is-playing").forEach((pad) => pad.classList.remove("is-playing"));
 }
 
 function selectPuppet(puppetId) {
@@ -108,6 +122,11 @@ function renderController(puppetId) {
       }
 
       isPlaying = Boolean(value);
+      if (isPlaying) {
+        activeNotes.add(noteIndex);
+      } else {
+        activeNotes.delete(noteIndex);
+      }
       pad.classList.toggle("is-playing", Boolean(value));
       sendControl({
         control: "note",
@@ -165,6 +184,7 @@ function connect() {
 
   socket.addEventListener("message", receive);
   socket.addEventListener("close", () => {
+    activeNotes.clear();
     assignedPuppetId = null;
     setSocketStatus("Reconectando", "offline");
     setNotice("Se perdio la conexion. Reintentando.");
@@ -188,6 +208,7 @@ function updateMotion(event) {
 }
 
 document.querySelector("#changePuppet").addEventListener("click", () => {
+  releaseAllNotes();
   send({ type: "controller.release" });
   assignedPuppetId = null;
   selectedPuppetId = null;
@@ -227,6 +248,13 @@ energyButton.addEventListener("pointerdown", (event) => {
 energyButton.addEventListener("pointerup", () => sendEnergy(0));
 energyButton.addEventListener("pointercancel", () => sendEnergy(0));
 energyButton.addEventListener("lostpointercapture", () => sendEnergy(0));
+
+window.addEventListener("blur", releaseAllNotes);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    releaseAllNotes();
+  }
+});
 
 fetch("/api/state")
   .then((response) => response.json())

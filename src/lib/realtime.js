@@ -84,6 +84,7 @@ export class RealtimeHub {
   receiveControllerMessage(controller, raw) {
     const message = parseJsonMessage(raw.toString());
     if (message?.type === "controller.release") {
+      this.releaseControllerNotes(controller);
       controller.puppetId = null;
       this.broadcastState();
       return;
@@ -130,8 +131,31 @@ export class RealtimeHub {
   }
 
   disconnectController(controller) {
+    this.releaseControllerNotes(controller);
     this.controllers.delete(controller.id);
     this.broadcastState();
+  }
+
+  releaseControllerNotes(controller) {
+    const puppet = PUPPETS.find((item) => item.id === controller.puppetId);
+    if (!puppet) {
+      return;
+    }
+
+    puppet.notes.forEach((midiNote, noteIndex) => {
+      this.broadcastToTouchDesigner({
+        type: "puppet.control",
+        timestamp: Date.now(),
+        puppetId: puppet.id,
+        role: puppet.role,
+        midiChannel: puppet.channel,
+        controllerId: controller.id,
+        event: "note_off",
+        noteIndex,
+        midiNote,
+        velocity: 0
+      });
+    });
   }
 
   broadcastState() {
