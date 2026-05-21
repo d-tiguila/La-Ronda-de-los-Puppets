@@ -101,7 +101,13 @@ function renderController(puppetId) {
     pad.textContent = midiNote;
     pad.setAttribute("aria-label", `Nota MIDI ${midiNote}`);
 
+    let isPlaying = false;
     const gate = (value) => {
+      if (isPlaying === Boolean(value)) {
+        return;
+      }
+
+      isPlaying = Boolean(value);
       pad.classList.toggle("is-playing", Boolean(value));
       sendControl({
         control: "note",
