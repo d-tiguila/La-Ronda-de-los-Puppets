@@ -15,8 +15,8 @@ const server = createServer((request, response) => {
 hub = new RealtimeHub(server);
 hub.startHeartbeat();
 
-server.listen(config.port, () => {
-  console.log(`Marionetas controller listening on port ${config.port}.`);
+server.listen(config.port, config.host, () => {
+  console.log(`Marionetas controller listening on ${config.host}:${config.port}.`);
 });
 
 function shutdown() {
@@ -26,4 +26,3 @@ function shutdown() {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-

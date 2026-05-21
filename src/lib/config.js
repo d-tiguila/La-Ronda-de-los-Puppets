@@ -10,6 +10,7 @@ function parseOrigins(value) {
 }
 
 export const config = {
+  host: process.env.HOST ?? "0.0.0.0",
   port: Number.parseInt(process.env.PORT ?? "3000", 10),
   tdToken: process.env.TD_TOKEN ?? "",
   allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGINS),
@@ -27,4 +28,3 @@ export function isBrowserOriginAllowed(origin) {
 
   return config.allowedOrigins.has(origin);
 }
-
