@@ -18,7 +18,7 @@ export const PUPPETS = [
     role: "Percusion",
     channel: 3,
     color: "#f2bf4b",
-    notes: [36, 38, 42, 46, 49]
+    notes: [60, 62, 64, 67, 69]
   },
   {
     id: 4,
@@ -37,4 +37,3 @@ export const PUPPETS = [
 ];
 
 export const PUPPET_BY_ID = new Map(PUPPETS.map((puppet) => [puppet.id, puppet]));
-
