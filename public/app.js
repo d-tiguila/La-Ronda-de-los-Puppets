@@ -23,7 +23,7 @@ let fallbackPulse = 0;
 let lastMotionSentAt = 0;
 let lastMotionVector = null;
 let smoothedEnergy = 0;
-const STILL_DELTA_THRESHOLD = 0.22;
+const STILL_DELTA_THRESHOLD = 0.5;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -102,6 +102,24 @@ function renderAssignedUser(user) {
   setNotice("Tu figura ya esta en el escenario.");
 }
 
+function releaseAssignedUser() {
+  assignedUser = null;
+  smoothedEnergy = 0;
+  lastMotionVector = null;
+  energyFill.style.width = "0%";
+  orbPreview.style.transform = "scale(0.92)";
+  motionPanel.hidden = true;
+
+  if (selectedInstrument) {
+    renderChords(selectedInstrument);
+    setNotice("Tu flor se marchito. Elige un acorde para sembrar otra.");
+    return;
+  }
+
+  chordPanel.hidden = true;
+  setNotice("Tu flor se marchito. Elige un instrumento para sembrar otra.");
+}
+
 function receive(event) {
   const message = JSON.parse(event.data);
 
@@ -112,6 +130,10 @@ function receive(event) {
 
   if (message.state) {
     stageState.textContent = message.state.stageConnected ? "Stage conectado" : "Stage sin conectar";
+
+    if (assignedUser && !message.state.users.some((user) => user.id === assignedUser.id)) {
+      releaseAssignedUser();
+    }
   }
 
   if (message.type === "user.assigned") {

@@ -11,10 +11,10 @@ import {
 
 const NOTE_DURATION_MS = 220;
 const TRIGGER_COOLDOWN_MS = 320;
-const USER_TIMEOUT_MS = 4500;
-const USER_REMOVE_MS = 6500;
+const USER_TIMEOUT_MS = 2500;
+const USER_REMOVE_MS = 4200;
 const HEARTBEAT_INTERVAL_MS = 1000;
-const MOTION_ACTIVITY_THRESHOLD = 0.075;
+const MOTION_ACTIVITY_THRESHOLD = 0.18;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -43,6 +43,7 @@ export class RealtimeHub {
     this.stageClients = new Set();
     this.touchDesignerClients = new Set();
     this.demoLastTriggers = new Map();
+    this.paused = false;
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 
     server.on("upgrade", (request, socket, head) => this.upgrade(request, socket, head));
@@ -135,6 +136,13 @@ export class RealtimeHub {
 
   receiveStageMessage(socket, raw) {
     const message = parseJsonMessage(raw.toString());
+
+    if (message?.type === "stage.pause") {
+      this.paused = Boolean(message.paused);
+      this.broadcastState();
+      return;
+    }
+
     const trigger = normalizeStageTrigger(message);
 
     if (!trigger) {
@@ -332,7 +340,8 @@ export class RealtimeHub {
       })),
       controllerCount: this.controllers.size,
       stageConnected: this.stageClients.size > 0,
-      touchDesignerConnected: this.touchDesignerClients.size > 0
+      touchDesignerConnected: this.touchDesignerClients.size > 0,
+      paused: this.paused
     };
   }
 

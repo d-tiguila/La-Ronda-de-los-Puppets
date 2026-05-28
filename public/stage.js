@@ -90,10 +90,7 @@ function createBubble(user) {
   el.className = "bubble flower";
   el.style.setProperty("--bubble-color", user.color);
   el.innerHTML = `
-    <span class="petal petal-a"></span>
-    <span class="petal petal-b"></span>
-    <span class="petal petal-c"></span>
-    <span class="petal petal-d"></span>
+    <span class="flower-shape"></span>
     <span class="flower-core"></span>
     <span class="flower-label">
       <strong>${user.instrumentLabel}</strong>
@@ -195,8 +192,13 @@ function syncBubbles(users) {
     });
   });
 
-  emptyState.hidden = users.length > 0 || DEMO_BUBBLE_COUNT > 0;
-  userCount.textContent = `${users.length} flor${users.length === 1 ? "" : "es"}`;
+  if (emptyState) {
+    emptyState.hidden = users.length > 0 || DEMO_BUBBLE_COUNT > 0;
+  }
+
+  if (userCount) {
+    userCount.textContent = `${users.length} flor${users.length === 1 ? "" : "es"}`;
+  }
 }
 
 function bloomFlower(userId) {
@@ -240,9 +242,13 @@ function receive(event) {
 
   if (message.state) {
     syncBubbles(message.state.users);
-    tdState.textContent = message.state.touchDesignerConnected
-      ? "TouchDesigner conectado"
-      : "TouchDesigner sin conectar";
+    setPaused(Boolean(message.state.paused));
+
+    if (tdState) {
+      tdState.textContent = message.state.touchDesignerConnected
+        ? "TouchDesigner conectado"
+        : "TouchDesigner sin conectar";
+    }
   }
 
   if (message.type === "bubble.pulse") {
@@ -251,14 +257,20 @@ function receive(event) {
 }
 
 function connect() {
-  stageSocket.textContent = "Conectando";
+  if (stageSocket) {
+    stageSocket.textContent = "Conectando";
+  }
   socket = new WebSocket(socketUrl());
   socket.addEventListener("open", () => {
-    stageSocket.textContent = "En linea";
+    if (stageSocket) {
+      stageSocket.textContent = "En linea";
+    }
   });
   socket.addEventListener("message", receive);
   socket.addEventListener("close", () => {
-    stageSocket.textContent = "Reconectando";
+    if (stageSocket) {
+      stageSocket.textContent = "Reconectando";
+    }
     setTimeout(connect, 1200);
   });
 }
@@ -326,9 +338,17 @@ function applyAmbientForces(now) {
 }
 
 function togglePause() {
-  paused = !paused;
-  pauseButton.textContent = paused ? "Reanudar" : "Pausa";
-  pauseButton.setAttribute("aria-pressed", String(paused));
+  setPaused(!paused);
+  send({ type: "stage.pause", paused });
+}
+
+function setPaused(nextPaused) {
+  paused = nextPaused;
+
+  if (pauseButton) {
+    pauseButton.textContent = paused ? "Reanudar" : "Pausa";
+    pauseButton.setAttribute("aria-pressed", String(paused));
+  }
 }
 
 function render() {
@@ -354,7 +374,7 @@ function render() {
 }
 
 window.addEventListener("resize", rebuildBounds);
-pauseButton.addEventListener("click", togglePause);
+pauseButton?.addEventListener("click", togglePause);
 rebuildBounds();
 createDemoBubbles();
 connect();

@@ -25,6 +25,14 @@ body {
   color: var(--text);
 }
 
+.floor-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  background: #071013;
+}
+
 button {
   color: inherit;
   font: inherit;
@@ -115,6 +123,25 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(18, 27, 32, 0.88);
+}
+
+.floor-shell {
+  display: grid;
+  width: min(100vw, 100vh);
+  aspect-ratio: 1;
+  place-items: stretch;
+}
+
+.floor-world {
+  width: 100%;
+  min-height: auto;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 0;
+}
+
+.floor-world .flower-label {
+  display: none;
 }
 
 .phone-header {
@@ -372,50 +399,31 @@ h2 {
   pointer-events: none;
 }
 
-.petal {
+.flower-shape {
   position: absolute;
-  width: 58%;
-  height: 58%;
-  border-radius: 50%;
+  inset: 0;
   background:
-    radial-gradient(circle at 26% 28%, rgba(255, 255, 255, 0.34), transparent 34%),
-    linear-gradient(135deg, #ffc3ea 0%, color-mix(in srgb, var(--bubble-color), #ff4cab 46%) 100%);
+    radial-gradient(circle at 31% 31%, #ffd4ef 0 27%, transparent 28%),
+    radial-gradient(circle at 69% 31%, color-mix(in srgb, var(--bubble-color), #ff69bd 64%) 0 27%, transparent 28%),
+    radial-gradient(circle at 69% 69%, color-mix(in srgb, var(--bubble-color), #ff8ed0 55%) 0 27%, transparent 28%),
+    radial-gradient(circle at 31% 69%, #ffc8ed 0 27%, transparent 28%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--bubble-color), #ff8dcc 54%) 0 18%, transparent 19%);
+  filter: saturate(1.12);
   transform-origin: center;
-}
-
-.petal-a {
-  top: 0;
-  left: 0;
-}
-
-.petal-b {
-  top: 0;
-  right: 0;
-}
-
-.petal-c {
-  right: 0;
-  bottom: 0;
-}
-
-.petal-d {
-  bottom: 0;
-  left: 0;
-  background:
-    radial-gradient(circle at 26% 28%, rgba(255, 255, 255, 0.42), transparent 34%),
-    linear-gradient(135deg, #ffd5f1 0%, color-mix(in srgb, var(--bubble-color), #ff86c8 34%) 100%);
 }
 
 .flower-core {
   position: absolute;
-  top: 42%;
-  left: 42%;
-  width: 16%;
-  height: 16%;
+  top: 41%;
+  left: 41%;
+  width: 18%;
+  height: 18%;
   border-radius: 50%;
-  background: rgba(255, 220, 244, 0.72);
-  box-shadow: 0 0 18px rgba(255, 199, 232, 0.72);
-  opacity: 0.72;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), transparent 28%),
+    #ffd642;
+  box-shadow: 0 0 18px rgba(255, 214, 66, 0.82);
+  opacity: 0.95;
 }
 
 .flower-label {
@@ -446,7 +454,8 @@ h2 {
   filter: drop-shadow(0 0 58px color-mix(in srgb, var(--bubble-color), transparent 6%));
 }
 
-.bubble.is-blooming .petal {
+.bubble.is-blooming .flower-shape,
+.bubble.is-blooming .flower-core {
   animation: petal-bloom 720ms ease-out;
 }
 
