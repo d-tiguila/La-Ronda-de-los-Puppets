@@ -14,7 +14,7 @@ const TRIGGER_COOLDOWN_MS = 320;
 const USER_TIMEOUT_MS = 4500;
 const USER_REMOVE_MS = 6500;
 const HEARTBEAT_INTERVAL_MS = 1000;
-const MOTION_ACTIVITY_THRESHOLD = 0.055;
+const MOTION_ACTIVITY_THRESHOLD = 0.018;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -187,7 +187,8 @@ export class RealtimeHub {
     }
 
     const now = Date.now();
-    const hasActiveGesture = motion.energy > MOTION_ACTIVITY_THRESHOLD || motion.shake > 0.025;
+    // Liveness should follow recent real motion, not smoothed visual energy.
+    const hasActiveGesture = motion.shake > MOTION_ACTIVITY_THRESHOLD;
 
     Object.assign(user, {
       energy: user.energy * 0.72 + motion.energy * 0.28,

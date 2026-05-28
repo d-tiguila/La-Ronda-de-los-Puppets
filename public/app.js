@@ -22,7 +22,7 @@ let reconnectTimer = null;
 let fallbackPulse = 0;
 let lastMotionSentAt = 0;
 let lastMotionVector = null;
-let smoothedEnergy = 0.12;
+let smoothedEnergy = 0;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -92,6 +92,8 @@ function renderChords(instrument) {
 // Reflect the assigned sound bubble on the phone so the participant knows they are live.
 function renderAssignedUser(user) {
   assignedUser = user;
+  lastMotionVector = null;
+  smoothedEnergy = 0;
   motionPanel.hidden = false;
   orbPreview.style.setProperty("--instrument-color", user.color);
   assignedTitle.textContent = `${user.instrumentLabel} - ${user.chordLabel}`;
@@ -146,11 +148,12 @@ function motionToEnergy(event) {
   const deltaY = y - previousVector.y;
   const deltaZ = z - previousVector.z;
   const deltaMagnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-  const lightstickGesture = Math.min(1, deltaMagnitude / 3.2);
-  const targetEnergy = lightstickGesture > 0.018 ? 0.2 + lightstickGesture * 0.8 : 0;
+  const lightstickGesture = Math.min(1, deltaMagnitude / 2.35);
+  const targetEnergy = lightstickGesture > 0.012 ? 0.18 + lightstickGesture * 0.82 : 0;
+  const smoothing = targetEnergy > smoothedEnergy ? 0.34 : 0.24;
 
   lastMotionVector = currentVector;
-  smoothedEnergy = smoothedEnergy * 0.86 + targetEnergy * 0.14;
+  smoothedEnergy = smoothedEnergy * (1 - smoothing) + targetEnergy * smoothing;
 
   return {
     energy: Math.min(1, smoothedEnergy),

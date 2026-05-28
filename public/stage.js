@@ -6,6 +6,7 @@ const emptyState = document.querySelector("#emptyState");
 const stageSocket = document.querySelector("#stageSocket");
 const userCount = document.querySelector("#userCount");
 const tdState = document.querySelector("#tdState");
+const pauseButton = document.querySelector("#pauseButton");
 
 const engine = Engine.create();
 engine.gravity.y = 0;
@@ -19,6 +20,7 @@ let socket;
 let playheadX = 0;
 let playheadCycle = 0;
 let lastTime = performance.now();
+let paused = false;
 
 function socketUrl() {
   const url = new URL("/ws?role=stage", window.location.href);
@@ -87,8 +89,10 @@ function createBubble(user) {
     radius,
     physicsRadius: radius,
     targetEnergy: user.energy,
+    targetShake: user.shake ?? 0,
     targetTiltX: 0,
     targetTiltY: 0,
+    shakeBurst: 0,
     windSeed: Math.random() * 1000,
     lastTriggeredCycle: -1
   };
@@ -141,11 +145,14 @@ function syncBubbles(users) {
     bubble.physicsRadius = targetRadius;
     gsap.to(bubble, { radius: targetRadius, duration: 0.85, ease: "power2.out", overwrite: "auto" });
     bubble.targetEnergy = user.energy;
+    bubble.targetShake = user.shake;
     bubble.targetTiltX = user.tiltX;
     bubble.targetTiltY = user.tiltY;
+    bubble.shakeBurst = Math.max(bubble.shakeBurst * 0.82, user.shake);
     bubble.el.style.setProperty("--bubble-color", user.color);
     bubble.el.querySelector("strong").textContent = user.instrumentLabel;
     bubble.el.querySelector("span").textContent = user.chordLabel;
+    bubble.el.classList.toggle("is-shaking", user.shake > 0.08);
     Body.scale(bubble.body, scale, scale);
     gsap.to(bubble.el, {
       opacity: user.alive ? 1 : 0.42,
@@ -157,8 +164,8 @@ function syncBubbles(users) {
 
     // Tilt gives each participant a soft steering influence, closer to a lightstick than a joystick.
     Body.applyForce(bubble.body, bubble.body.position, {
-      x: user.tiltX * (0.00028 + user.energy * 0.00038),
-      y: -user.tiltY * (0.00028 + user.energy * 0.00038)
+      x: user.tiltX * (0.00034 + user.energy * 0.00048),
+      y: -user.tiltY * (0.00034 + user.energy * 0.00048)
     });
   });
 
@@ -269,12 +276,22 @@ function applyAmbientForces(now) {
     const windB = Math.cos(now * 0.00042 + bubble.windSeed * 1.7);
     const demoLift = bubble.demo ? 0.00009 : 0.000035;
     const userDrift = bubble.demo ? 0 : bubble.targetEnergy * 0.00008;
+    const shakePush = bubble.demo ? 0 : bubble.shakeBurst * 0.00115;
+    const shakeA = Math.sin(now * 0.0018 + bubble.windSeed * 2.3);
+    const shakeB = Math.cos(now * 0.0015 + bubble.windSeed * 3.1);
 
     Body.applyForce(bubble.body, bubble.body.position, {
-      x: windA * (demoLift + userDrift),
-      y: windB * (demoLift * 0.75 + userDrift)
+      x: windA * (demoLift + userDrift) + shakeA * shakePush,
+      y: windB * (demoLift * 0.75 + userDrift) + shakeB * shakePush
     });
+    bubble.shakeBurst *= 0.94;
   }
+}
+
+function togglePause() {
+  paused = !paused;
+  pauseButton.textContent = paused ? "Reanudar" : "Pausa";
+  pauseButton.setAttribute("aria-pressed", String(paused));
 }
 
 function render() {
@@ -282,10 +299,12 @@ function render() {
   const deltaMs = now - lastTime;
   lastTime = now;
 
-  applyAmbientForces(now);
-  Engine.update(engine, Math.min(deltaMs, 32));
-  updatePlayhead(deltaMs);
-  triggerCrossedBubbles();
+  if (!paused) {
+    applyAmbientForces(now);
+    Engine.update(engine, Math.min(deltaMs, 32));
+    updatePlayhead(deltaMs);
+    triggerCrossedBubbles();
+  }
 
   for (const bubble of bubbles.values()) {
     const { x, y } = bubble.body.position;
@@ -298,6 +317,7 @@ function render() {
 }
 
 window.addEventListener("resize", rebuildBounds);
+pauseButton.addEventListener("click", togglePause);
 rebuildBounds();
 createDemoBubbles();
 connect();
