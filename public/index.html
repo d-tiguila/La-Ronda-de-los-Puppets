@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Marionetas MIDI</title>
+    <title>Control de Figura Sonora</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
-    <main class="app">
-      <header class="topbar">
+  <body class="controller-page">
+    <main class="phone-shell">
+      <header class="phone-header">
         <div>
-          <p class="eyebrow">Coro colectivo</p>
-          <h1>Marionetas MIDI</h1>
+          <p class="eyebrow">Figura sonora</p>
+          <h1>Entra al ensamble</h1>
         </div>
         <div class="connection">
           <span id="socketDot" class="dot" aria-hidden="true"></span>
@@ -19,35 +19,32 @@
         </div>
       </header>
 
-      <section class="stage" aria-labelledby="chooseTitle">
+      <section class="panel" aria-labelledby="instrumentTitle">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Test manual</p>
-            <h2 id="chooseTitle">Elige tu marioneta</h2>
+            <p class="eyebrow">Paso 1</p>
+            <h2 id="instrumentTitle">Elige tu instrumento</h2>
           </div>
-          <p id="touchDesignerState" class="td-state">TouchDesigner sin conectar</p>
+          <p id="stageState" class="status-pill">Stage sin conectar</p>
         </div>
-        <div id="puppetGrid" class="puppet-grid" aria-live="polite"></div>
+        <div id="instrumentGrid" class="instrument-grid" aria-live="polite"></div>
       </section>
 
-      <section id="controller" class="controller" hidden>
-        <div class="section-heading selected">
-          <div>
-            <p id="selectedRole" class="eyebrow">Marioneta</p>
-            <h2 id="selectedTitle">Control</h2>
-          </div>
-          <button id="changePuppet" class="icon-button" type="button" title="Cambiar marioneta" aria-label="Cambiar marioneta">
-            <span aria-hidden="true">&#8635;</span>
-          </button>
+      <section id="motionPanel" class="panel motion-panel" hidden>
+        <div class="orb-preview" id="orbPreview" aria-hidden="true">
+          <span></span>
         </div>
+        <h2 id="assignedTitle">Tu figura esta naciendo</h2>
+        <p id="assignedNote" class="support-copy">Agita el telefono para mantenerla viva.</p>
 
-        <div class="control-layout">
-          <section class="surface notes-surface" aria-labelledby="notesTitle">
-            <h3 id="notesTitle">Acordes</h3>
-            <div id="notePads" class="note-pads"></div>
-            <button id="energyButton" class="energy-button" type="button">Energia del grupo</button>
-          </section>
+        <button id="motionButton" class="primary-action" type="button">
+          Activar movimiento
+        </button>
+
+        <div class="energy-meter" aria-label="Energia de movimiento">
+          <span id="energyFill"></span>
         </div>
+        <p id="motionHint" class="notice">En iPhone toca el boton para permitir sensores de movimiento.</p>
       </section>
 
       <p id="notice" class="notice" role="status"></p>

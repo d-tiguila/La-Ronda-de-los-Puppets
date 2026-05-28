@@ -1,39 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeControl, normalizeJoin } from "../src/lib/protocol.js";
+import {
+  normalizeControllerJoin,
+  normalizeControllerMotion,
+  normalizeStageTrigger
+} from "../src/lib/protocol.js";
 
-test("accepts valid puppet joins only", () => {
-  assert.deepEqual(normalizeJoin({ type: "controller.join", puppetId: 3 }), { puppetId: 3 });
-  assert.equal(normalizeJoin({ type: "controller.join", puppetId: 8 }), null);
+test("accepts known instrument joins only", () => {
+  assert.deepEqual(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse" }), {
+    instrumentId: "pulse"
+  });
+  assert.equal(normalizeControllerJoin({ type: "user.join", instrumentId: "unknown" }), null);
 });
 
-test("maps note indexes to the puppet MIDI notes", () => {
+test("normalizes motion values into safe ranges", () => {
   assert.deepEqual(
-    normalizeControl(
-      { type: "controller.control", puppetId: 1, control: "note", noteIndex: 3, gate: 1, velocity: 0.9 },
-      1
-    ),
-    { event: "note_on", noteIndex: 3, midiNote: 62, velocity: 0.9 }
+    normalizeControllerMotion({
+      type: "user.motion",
+      energy: 2,
+      shake: 0.5,
+      tiltX: -3,
+      tiltY: 0.25
+    }),
+    {
+      energy: 1,
+      shake: 0.5,
+      tiltX: -1,
+      tiltY: 0.25
+    }
   );
 });
 
-test("maps chord pad gates to MIDI note groups", () => {
-  assert.deepEqual(
-    normalizeControl(
-      { type: "controller.control", puppetId: 1, control: "pad", padIndex: 4, gate: 1, velocity: 0.82 },
-      1
-    ),
-    { event: "note_on", padIndex: 4, padLabel: "G", midiNotes: [67, 71, 74], velocity: 0.82 }
-  );
-});
-
-test("clamps parameters and rejects controls from another puppet", () => {
-  assert.deepEqual(
-    normalizeControl({ type: "controller.control", puppetId: 2, control: "volume", value: 3 }, 2),
-    { event: "parameter", parameter: "volume", value: 1 }
-  );
-  assert.equal(
-    normalizeControl({ type: "controller.control", puppetId: 2, control: "effect", value: 0.4 }, 1),
-    null
-  );
+test("accepts stage triggers with user ids", () => {
+  assert.deepEqual(normalizeStageTrigger({ type: "stage.trigger", userId: "abc" }), {
+    userId: "abc"
+  });
+  assert.equal(normalizeStageTrigger({ type: "stage.trigger", userId: 123 }), null);
 });

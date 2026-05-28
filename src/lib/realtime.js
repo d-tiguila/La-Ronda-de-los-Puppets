@@ -1,8 +1,17 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-import { PUPPETS } from "../config/puppets.js";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, assignNote } from "../config/instruments.js";
 import { config, isBrowserOriginAllowed } from "./config.js";
-import { normalizeControl, normalizeJoin, parseJsonMessage } from "./protocol.js";
+import {
+  normalizeControllerJoin,
+  normalizeControllerMotion,
+  normalizeStageTrigger,
+  parseJsonMessage
+} from "./protocol.js";
+
+const NOTE_DURATION_MS = 220;
+const TRIGGER_COOLDOWN_MS = 320;
+const USER_TIMEOUT_MS = 7000;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -26,7 +35,9 @@ function tokenMatches(candidate) {
 
 export class RealtimeHub {
   constructor(server) {
+    this.users = new Map();
     this.controllers = new Map();
+    this.stageClients = new Set();
     this.touchDesignerClients = new Set();
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 
@@ -43,9 +54,10 @@ export class RealtimeHub {
 
     const role = url.searchParams.get("role");
     const isTouchDesigner = role === "touchdesigner" && tokenMatches(url.searchParams.get("token"));
-    const isController = role === "controller" && isBrowserOriginAllowed(request.headers.origin, request.headers.host);
+    const isBrowserRole = (role === "controller" || role === "stage")
+      && isBrowserOriginAllowed(request.headers.origin, request.headers.host);
 
-    if (!isTouchDesigner && !isController) {
+    if (!isTouchDesigner && !isBrowserRole) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
       socket.destroy();
       return;
@@ -69,99 +81,151 @@ export class RealtimeHub {
       return;
     }
 
+    if (client.role === "stage") {
+      this.stageClients.add(socket);
+      send(socket, { type: "server.ready", state: this.snapshot() });
+      socket.on("message", (raw) => this.receiveStageMessage(socket, raw));
+      socket.on("close", () => this.stageClients.delete(socket));
+      return;
+    }
+
     const controller = {
       id: randomUUID(),
-      puppetId: null,
+      userId: null,
       socket
     };
 
     this.controllers.set(controller.id, controller);
-    send(socket, { type: "server.ready", controllerId: controller.id, state: this.snapshot() });
+    send(socket, {
+      type: "server.ready",
+      controllerId: controller.id,
+      instruments: INSTRUMENTS,
+      state: this.snapshot()
+    });
     socket.on("message", (raw) => this.receiveControllerMessage(controller, raw));
     socket.on("close", () => this.disconnectController(controller));
   }
 
   receiveControllerMessage(controller, raw) {
     const message = parseJsonMessage(raw.toString());
-    if (message?.type === "controller.release") {
-      this.releaseControllerNotes(controller);
-      controller.puppetId = null;
-      this.broadcastState();
-      return;
-    }
-
-    const join = normalizeJoin(message);
+    const join = normalizeControllerJoin(message);
 
     if (join) {
-      this.assignPuppet(controller, join.puppetId);
+      this.createOrUpdateUser(controller, join.instrumentId);
       return;
     }
 
-    const control = normalizeControl(message, controller.puppetId);
-    if (!control) {
-      send(controller.socket, { type: "server.error", code: "invalid_message" });
+    const motion = normalizeControllerMotion(message);
+    if (motion && controller.userId) {
+      this.updateUserMotion(controller.userId, motion);
       return;
     }
 
-    const puppet = PUPPETS.find((item) => item.id === controller.puppetId);
-    const controls = control.midiNotes
-      ? control.midiNotes.map((midiNote) => ({ ...control, midiNote, midiNotes: undefined }))
-      : [control];
+    if (message?.type === "user.leave") {
+      this.disconnectController(controller);
+      return;
+    }
 
-    controls.forEach((noteControl) => {
-      this.broadcastToTouchDesigner({
-        type: "puppet.control",
-        timestamp: Date.now(),
-        puppetId: puppet.id,
-        role: puppet.role,
-        midiChannel: puppet.channel,
-        controllerId: controller.id,
-        ...noteControl
-      });
-    });
+    send(controller.socket, { type: "server.error", code: "invalid_message" });
   }
 
-  assignPuppet(controller, puppetId) {
-    const occupied = [...this.controllers.values()].find(
-      (candidate) => candidate.id !== controller.id && candidate.puppetId === puppetId
-    );
+  receiveStageMessage(socket, raw) {
+    const message = parseJsonMessage(raw.toString());
+    const trigger = normalizeStageTrigger(message);
 
-    if (occupied) {
-      send(controller.socket, { type: "server.error", code: "puppet_busy", puppetId });
+    if (!trigger) {
+      send(socket, { type: "server.error", code: "invalid_stage_message" });
       return;
     }
 
-    controller.puppetId = puppetId;
-    send(controller.socket, { type: "controller.assigned", puppetId, state: this.snapshot() });
+    this.triggerUserSound(trigger.userId);
+  }
+
+  createOrUpdateUser(controller, instrumentId) {
+    const instrument = INSTRUMENT_BY_ID.get(instrumentId);
+    const userId = controller.userId ?? randomUUID();
+    const existing = this.users.get(userId);
+    const seed = this.users.size + Date.now();
+    const user = {
+      id: userId,
+      controllerId: controller.id,
+      instrumentId: instrument.id,
+      instrumentLabel: instrument.label,
+      midiChannel: instrument.channel,
+      midiNote: existing?.midiNote ?? assignNote(instrument, seed),
+      color: instrument.color,
+      energy: existing?.energy ?? 0.55,
+      shake: existing?.shake ?? 0,
+      tiltX: existing?.tiltX ?? 0,
+      tiltY: existing?.tiltY ?? 0,
+      alive: true,
+      lastMotionAt: Date.now(),
+      lastTriggerAt: 0
+    };
+
+    controller.userId = userId;
+    this.users.set(userId, user);
+    send(controller.socket, { type: "user.assigned", user, instruments: INSTRUMENTS });
     this.broadcastState();
+  }
+
+  updateUserMotion(userId, motion) {
+    const user = this.users.get(userId);
+    if (!user) {
+      return;
+    }
+
+    Object.assign(user, motion, {
+      alive: motion.energy > 0.08,
+      lastMotionAt: Date.now()
+    });
+
+    this.broadcastState();
+  }
+
+  triggerUserSound(userId) {
+    const user = this.users.get(userId);
+    const now = Date.now();
+
+    if (!user || !user.alive || now - user.lastTriggerAt < TRIGGER_COOLDOWN_MS) {
+      return;
+    }
+
+    user.lastTriggerAt = now;
+    const velocity = Math.max(18, Math.min(127, Math.round(40 + user.energy * 87)));
+    this.sendMidiNote(user, "note_on", velocity);
+    this.broadcastToStage({ type: "bubble.pulse", userId, velocity });
+
+    setTimeout(() => {
+      this.sendMidiNote(user, "note_off", 0);
+    }, NOTE_DURATION_MS);
+  }
+
+  sendMidiNote(user, event, velocity) {
+    this.broadcastToTouchDesigner({
+      type: "puppet.control",
+      timestamp: Date.now(),
+      puppetId: user.instrumentId,
+      role: user.instrumentLabel,
+      midiChannel: user.midiChannel,
+      controllerId: user.controllerId,
+      event,
+      midiNote: user.midiNote,
+      velocity
+    });
   }
 
   disconnectController(controller) {
-    this.releaseControllerNotes(controller);
-    this.controllers.delete(controller.id);
-    this.broadcastState();
-  }
-
-  releaseControllerNotes(controller) {
-    const puppet = PUPPETS.find((item) => item.id === controller.puppetId);
-    if (!puppet) {
-      return;
+    if (controller.userId) {
+      const user = this.users.get(controller.userId);
+      if (user) {
+        this.sendMidiNote(user, "note_off", 0);
+      }
+      this.users.delete(controller.userId);
     }
 
-    [...new Set(puppet.pads.flatMap((pad) => pad.notes))].forEach((midiNote, noteIndex) => {
-      this.broadcastToTouchDesigner({
-        type: "puppet.control",
-        timestamp: Date.now(),
-        puppetId: puppet.id,
-        role: puppet.role,
-        midiChannel: puppet.channel,
-        controllerId: controller.id,
-        event: "note_off",
-        noteIndex,
-        midiNote,
-        velocity: 0
-      });
-    });
+    this.controllers.delete(controller.id);
+    this.broadcastState();
   }
 
   broadcastState() {
@@ -169,7 +233,14 @@ export class RealtimeHub {
     for (const controller of this.controllers.values()) {
       send(controller.socket, message);
     }
+    this.broadcastToStage(message);
     this.broadcastToTouchDesigner(message);
+  }
+
+  broadcastToStage(message) {
+    for (const socket of this.stageClients) {
+      send(socket, message);
+    }
   }
 
   broadcastToTouchDesigner(message) {
@@ -178,29 +249,54 @@ export class RealtimeHub {
     }
   }
 
-  snapshot() {
-    const occupiedIds = new Set(
-      [...this.controllers.values()]
-        .map((controller) => controller.puppetId)
-        .filter(Boolean)
-    );
+  pruneInactiveUsers() {
+    const now = Date.now();
+    let changed = false;
 
+    for (const [userId, user] of this.users) {
+      if (now - user.lastMotionAt > USER_TIMEOUT_MS) {
+        user.alive = false;
+        user.energy = Math.max(0, user.energy - 0.08);
+        changed = true;
+      }
+
+      if (!user.alive && user.energy <= 0.01 && now - user.lastMotionAt > USER_TIMEOUT_MS * 2) {
+        this.users.delete(userId);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.broadcastState();
+    }
+  }
+
+  snapshot() {
     return {
-      puppets: PUPPETS.map((puppet) => ({
-        id: puppet.id,
-        role: puppet.role,
-        midiChannel: puppet.channel,
-        color: puppet.color,
-        pads: puppet.pads,
-        occupied: occupiedIds.has(puppet.id)
+      instruments: INSTRUMENTS,
+      users: [...this.users.values()].map((user) => ({
+        id: user.id,
+        instrumentId: user.instrumentId,
+        instrumentLabel: user.instrumentLabel,
+        midiChannel: user.midiChannel,
+        midiNote: user.midiNote,
+        color: user.color,
+        energy: user.energy,
+        shake: user.shake,
+        tiltX: user.tiltX,
+        tiltY: user.tiltY,
+        alive: user.alive
       })),
       controllerCount: this.controllers.size,
+      stageConnected: this.stageClients.size > 0,
       touchDesignerConnected: this.touchDesignerClients.size > 0
     };
   }
 
   startHeartbeat() {
     this.heartbeat = setInterval(() => {
+      this.pruneInactiveUsers();
+
       for (const socket of this.wss.clients) {
         if (!socket.isAlive) {
           socket.terminate();

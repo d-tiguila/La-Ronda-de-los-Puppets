@@ -4,6 +4,10 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const publicDir = fileURLToPath(new URL("../../public/", import.meta.url));
+const vendorFiles = new Map([
+  ["/vendor/matter.min.js", fileURLToPath(new URL("../../node_modules/matter-js/build/matter.min.js", import.meta.url))],
+  ["/vendor/gsap.min.js", fileURLToPath(new URL("../../node_modules/gsap/dist/gsap.min.js", import.meta.url))]
+]);
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -42,6 +46,17 @@ export async function handleHttpRequest(request, response, snapshot) {
     return;
   }
 
+  const vendorPath = vendorFiles.get(url.pathname);
+  if (vendorPath) {
+    setSecurityHeaders(response);
+    response.writeHead(200, {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    createReadStream(vendorPath).pipe(response);
+    return;
+  }
+
   const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
   const safePath = normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(publicDir, safePath);
@@ -73,4 +88,3 @@ export async function handleHttpRequest(request, response, snapshot) {
     sendJson(response, 404, { error: "not_found" });
   }
 }
-

@@ -1,21 +1,22 @@
-const puppetGrid = document.querySelector("#puppetGrid");
-const controllerPanel = document.querySelector("#controller");
-const notePads = document.querySelector("#notePads");
+const instrumentGrid = document.querySelector("#instrumentGrid");
+const motionPanel = document.querySelector("#motionPanel");
+const motionButton = document.querySelector("#motionButton");
 const socketDot = document.querySelector("#socketDot");
 const socketLabel = document.querySelector("#socketLabel");
-const touchDesignerState = document.querySelector("#touchDesignerState");
-const selectedTitle = document.querySelector("#selectedTitle");
-const selectedRole = document.querySelector("#selectedRole");
-const selectedHeading = document.querySelector(".section-heading.selected");
+const stageState = document.querySelector("#stageState");
+const assignedTitle = document.querySelector("#assignedTitle");
+const assignedNote = document.querySelector("#assignedNote");
+const orbPreview = document.querySelector("#orbPreview");
+const energyFill = document.querySelector("#energyFill");
+const motionHint = document.querySelector("#motionHint");
 const notice = document.querySelector("#notice");
-const energyButton = document.querySelector("#energyButton");
 
 let socket;
-let state = { puppets: [] };
-let selectedPuppetId = null;
-let assignedPuppetId = null;
+let instruments = [];
+let assignedUser = null;
 let reconnectTimer = null;
-const activePads = new Set();
+let fallbackPulse = 0;
+let lastMotionSentAt = 0;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -23,13 +24,13 @@ function socketUrl() {
   return url;
 }
 
-function setNotice(message) {
-  notice.textContent = message;
-}
-
 function setSocketStatus(label, className) {
   socketLabel.textContent = label;
   socketDot.className = `dot ${className}`;
+}
+
+function setNotice(message) {
+  notice.textContent = message;
 }
 
 function send(message) {
@@ -38,134 +39,51 @@ function send(message) {
   }
 }
 
-function sendControl(message) {
-  if (!assignedPuppetId) {
-    return;
-  }
+// Build the instrument picker from the server state so Ableton channel changes stay centralized.
+function renderInstruments() {
+  instrumentGrid.replaceChildren();
 
-  send({
-    type: "controller.control",
-    puppetId: assignedPuppetId,
-    ...message
-  });
-}
-
-function releaseAllNotes() {
-  activePads.forEach((padIndex) => {
-    sendControl({
-      control: "pad",
-      padIndex,
-      gate: 0,
-      velocity: 0
-    });
-  });
-  activePads.clear();
-  notePads.querySelectorAll(".is-playing").forEach((pad) => pad.classList.remove("is-playing"));
-}
-
-function selectPuppet(puppetId) {
-  selectedPuppetId = puppetId;
-  send({ type: "controller.join", puppetId });
-}
-
-function renderPuppets() {
-  puppetGrid.replaceChildren();
-  touchDesignerState.textContent = state.touchDesignerConnected
-    ? "TouchDesigner conectado"
-    : "TouchDesigner sin conectar";
-
-  state.puppets.forEach((puppet) => {
+  instruments.forEach((instrument) => {
     const button = document.createElement("button");
+    button.className = "instrument-card";
     button.type = "button";
-    button.className = "puppet-card";
-    button.style.setProperty("--puppet-color", puppet.color);
-    button.disabled = puppet.occupied && puppet.id !== assignedPuppetId;
+    button.style.setProperty("--instrument-color", instrument.color);
     button.innerHTML = `
-      <span>Marioneta ${puppet.id}</span>
-      <strong>${puppet.role}</strong>
-      <span>Track MIDI ${puppet.midiChannel}</span>
-      <span class="status-pill">${button.disabled ? "Ocupada" : "Disponible"}</span>
+      <span class="instrument-dot"></span>
+      <strong>${instrument.label}</strong>
+      <span>Canal MIDI ${instrument.channel}</span>
     `;
-    button.addEventListener("click", () => selectPuppet(puppet.id));
-    puppetGrid.append(button);
+    button.addEventListener("click", () => {
+      send({ type: "user.join", instrumentId: instrument.id });
+    });
+    instrumentGrid.append(button);
   });
 }
 
-function renderController(puppetId) {
-  const puppet = state.puppets.find((item) => item.id === puppetId);
-  if (!puppet) {
-    return;
-  }
-
-  assignedPuppetId = puppet.id;
-  selectedHeading.style.setProperty("--puppet-color", puppet.color);
-  controllerPanel.style.setProperty("--puppet-color", puppet.color);
-  selectedRole.textContent = puppet.role;
-  selectedTitle.textContent = `Marioneta ${puppet.id}`;
-  controllerPanel.hidden = false;
-  notePads.replaceChildren();
-
-  puppet.pads.forEach((chordPad, padIndex) => {
-    const pad = document.createElement("button");
-    pad.className = "note-pad";
-    pad.type = "button";
-    pad.innerHTML = `
-      <strong>${chordPad.label}</strong>
-      <span>${chordPad.notes.join(" . ")}</span>
-    `;
-    pad.setAttribute("aria-label", `Acorde ${chordPad.label}, notas MIDI ${chordPad.notes.join(", ")}`);
-
-    let isPlaying = false;
-    const gate = (value) => {
-      if (isPlaying === Boolean(value)) {
-        return;
-      }
-
-      isPlaying = Boolean(value);
-      if (isPlaying) {
-        activePads.add(padIndex);
-      } else {
-        activePads.delete(padIndex);
-      }
-      pad.classList.toggle("is-playing", Boolean(value));
-      sendControl({
-        control: "pad",
-        padIndex,
-        gate: value,
-        velocity: 0.82
-      });
-    };
-
-    pad.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      pad.setPointerCapture(event.pointerId);
-      gate(1);
-    });
-    pad.addEventListener("pointerup", () => gate(0));
-    pad.addEventListener("pointercancel", () => gate(0));
-    pad.addEventListener("lostpointercapture", () => gate(0));
-    notePads.append(pad);
-  });
+// Reflect the assigned sound bubble on the phone so the participant knows they are live.
+function renderAssignedUser(user) {
+  assignedUser = user;
+  motionPanel.hidden = false;
+  orbPreview.style.setProperty("--instrument-color", user.color);
+  assignedTitle.textContent = user.instrumentLabel;
+  assignedNote.textContent = `Nota MIDI ${user.midiNote}. Agita para mantener viva tu figura.`;
+  setNotice("Tu figura ya esta en el escenario.");
 }
 
 function receive(event) {
   const message = JSON.parse(event.data);
+
+  if (message.instruments) {
+    instruments = message.instruments;
+    renderInstruments();
+  }
+
   if (message.state) {
-    state = message.state;
-    renderPuppets();
+    stageState.textContent = message.state.stageConnected ? "Stage conectado" : "Stage sin conectar";
   }
 
-  if (message.type === "controller.assigned") {
-    renderController(message.puppetId);
-    setNotice(`Controlando marioneta ${message.puppetId}.`);
-  }
-
-  if (message.type === "server.error" && message.code === "puppet_busy") {
-    setNotice(`La marioneta ${message.puppetId} ya tiene controlador.`);
-  }
-
-  if (message.type === "server.error" && message.code === "invalid_message") {
-    setNotice("El servidor rechazo un control fuera del protocolo.");
+  if (message.type === "user.assigned") {
+    renderAssignedUser(message.user);
   }
 }
 
@@ -176,57 +94,82 @@ function connect() {
 
   socket.addEventListener("open", () => {
     setSocketStatus("En linea", "online");
-    setNotice("Listo para asignar una marioneta.");
-    if (selectedPuppetId) {
-      selectPuppet(selectedPuppetId);
-    }
+    setNotice("Elige un instrumento para crear tu figura.");
   });
 
   socket.addEventListener("message", receive);
   socket.addEventListener("close", () => {
-    activePads.clear();
-    assignedPuppetId = null;
     setSocketStatus("Reconectando", "offline");
     setNotice("Se perdio la conexion. Reintentando.");
     reconnectTimer = setTimeout(connect, 1200);
   });
 }
 
-document.querySelector("#changePuppet").addEventListener("click", () => {
-  releaseAllNotes();
-  send({ type: "controller.release" });
-  assignedPuppetId = null;
-  selectedPuppetId = null;
-  controllerPanel.hidden = true;
-  setNotice("Elige otra marioneta disponible.");
-  renderPuppets();
-});
+// Convert acceleration into a stable 0-1 energy signal for the shared stage.
+function motionToEnergy(event) {
+  const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
+  const x = acceleration.x ?? 0;
+  const y = acceleration.y ?? 0;
+  const z = acceleration.z ?? 0;
+  const magnitude = Math.sqrt(x * x + y * y + z * z);
+  const shake = Math.min(1, Math.max(0, (magnitude - 9.8) / 11));
 
-function sendEnergy(active) {
-  energyButton.classList.toggle("is-active", Boolean(active));
-  sendControl({ control: "energy", active });
+  return {
+    energy: Math.min(1, Math.max(0.06, shake * 1.35)),
+    shake,
+    tiltX: Math.max(-1, Math.min(1, x / 9.8)),
+    tiltY: Math.max(-1, Math.min(1, y / 9.8))
+  };
 }
 
-energyButton.addEventListener("pointerdown", (event) => {
-  energyButton.setPointerCapture(event.pointerId);
-  sendEnergy(1);
-});
-energyButton.addEventListener("pointerup", () => sendEnergy(0));
-energyButton.addEventListener("pointercancel", () => sendEnergy(0));
-energyButton.addEventListener("lostpointercapture", () => sendEnergy(0));
-
-window.addEventListener("blur", releaseAllNotes);
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    releaseAllNotes();
+function sendMotion(motion) {
+  if (!assignedUser) {
+    return;
   }
+
+  const now = performance.now();
+  if (now - lastMotionSentAt < 120) {
+    return;
+  }
+
+  lastMotionSentAt = now;
+  energyFill.style.width = `${Math.round(motion.energy * 100)}%`;
+  orbPreview.style.transform = `scale(${0.92 + motion.energy * 0.28})`;
+  send({ type: "user.motion", ...motion });
+}
+
+async function enableMotion() {
+  // iOS requires the permission request to happen inside a user gesture.
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    const permission = await DeviceMotionEvent.requestPermission();
+    if (permission !== "granted") {
+      motionHint.textContent = "No se concedio permiso de movimiento. Usa el boton para simular energia.";
+      return;
+    }
+  }
+
+  window.addEventListener("devicemotion", (event) => sendMotion(motionToEnergy(event)));
+  motionButton.textContent = "Mantener energia";
+  motionHint.textContent = "Agita suavemente o manten presionado para pruebas.";
+}
+
+motionButton.addEventListener("click", enableMotion);
+
+// Manual fallback for laptops and for quick tests when sensor data is sparse.
+motionButton.addEventListener("pointerdown", () => {
+  fallbackPulse = 1;
+  sendMotion({ energy: 1, shake: 1, tiltX: 0, tiltY: 0 });
 });
 
-fetch("/api/state")
-  .then((response) => response.json())
-  .then((snapshot) => {
-    state = snapshot;
-    renderPuppets();
-  });
+motionButton.addEventListener("pointerup", () => {
+  fallbackPulse = 0;
+  sendMotion({ energy: 0.12, shake: 0, tiltX: 0, tiltY: 0 });
+});
+
+setInterval(() => {
+  if (fallbackPulse > 0) {
+    sendMotion({ energy: 0.8, shake: 0.8, tiltX: 0, tiltY: 0 });
+  }
+}, 180);
 
 connect();

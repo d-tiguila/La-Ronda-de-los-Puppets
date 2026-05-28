@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Escenario Sonoro</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="stage-page">
+    <main class="stage-shell">
+      <section class="stage-toolbar" aria-label="Estado del escenario">
+        <div>
+          <p class="eyebrow">Prueba colectiva</p>
+          <h1>Escenario de Figuras</h1>
+        </div>
+        <div class="stage-stats">
+          <span id="stageSocket">Conectando</span>
+          <span id="userCount">0 figuras</span>
+          <span id="tdState">TouchDesigner sin conectar</span>
+        </div>
+      </section>
+
+      <section id="stageWorld" class="stage-world" aria-label="Visualizacion colectiva">
+        <div id="playhead" class="playhead" aria-hidden="true"></div>
+        <div id="emptyState" class="empty-state">
+          Abre la pagina en un celular, elige un instrumento y agita para crear una figura.
+        </div>
+      </section>
+    </main>
+
+    <script src="/vendor/matter.min.js"></script>
+    <script src="/vendor/gsap.min.js"></script>
+    <script type="module" src="/stage.js"></script>
+  </body>
+</html>
