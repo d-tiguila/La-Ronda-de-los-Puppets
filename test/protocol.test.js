@@ -7,10 +7,12 @@ import {
 } from "../src/lib/protocol.js";
 
 test("accepts known instrument joins only", () => {
-  assert.deepEqual(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse" }), {
-    instrumentId: "pulse"
+  assert.deepEqual(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse", chordId: "g" }), {
+    instrumentId: "pulse",
+    chordId: "g"
   });
   assert.equal(normalizeControllerJoin({ type: "user.join", instrumentId: "unknown" }), null);
+  assert.equal(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse", chordId: "bad" }), null);
 });
 
 test("normalizes motion values into safe ranges", () => {

@@ -1,6 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-import { INSTRUMENTS, INSTRUMENT_BY_ID, assignNote } from "../config/instruments.js";
+import { INSTRUMENTS, INSTRUMENT_BY_ID, findChord } from "../config/instruments.js";
 import { config, isBrowserOriginAllowed } from "./config.js";
 import {
   normalizeControllerJoin,
@@ -111,7 +111,7 @@ export class RealtimeHub {
     const join = normalizeControllerJoin(message);
 
     if (join) {
-      this.createOrUpdateUser(controller, join.instrumentId);
+      this.createOrUpdateUser(controller, join.instrumentId, join.chordId);
       return;
     }
 
@@ -141,18 +141,20 @@ export class RealtimeHub {
     this.triggerUserSound(trigger.userId);
   }
 
-  createOrUpdateUser(controller, instrumentId) {
+  createOrUpdateUser(controller, instrumentId, chordId) {
     const instrument = INSTRUMENT_BY_ID.get(instrumentId);
+    const chord = findChord(instrument, chordId);
     const userId = controller.userId ?? randomUUID();
     const existing = this.users.get(userId);
-    const seed = this.users.size + Date.now();
     const user = {
       id: userId,
       controllerId: controller.id,
       instrumentId: instrument.id,
       instrumentLabel: instrument.label,
       midiChannel: instrument.channel,
-      midiNote: existing?.midiNote ?? assignNote(instrument, seed),
+      chordId: chord.id,
+      chordLabel: chord.label,
+      midiNotes: chord.notes,
       color: instrument.color,
       energy: existing?.energy ?? 0.55,
       shake: existing?.shake ?? 0,
@@ -193,25 +195,29 @@ export class RealtimeHub {
 
     user.lastTriggerAt = now;
     const velocity = Math.max(18, Math.min(127, Math.round(40 + user.energy * 87)));
-    this.sendMidiNote(user, "note_on", velocity);
+    this.sendMidiChord(user, "note_on", velocity);
     this.broadcastToStage({ type: "bubble.pulse", userId, velocity });
 
     setTimeout(() => {
-      this.sendMidiNote(user, "note_off", 0);
+      this.sendMidiChord(user, "note_off", 0);
     }, NOTE_DURATION_MS);
   }
 
-  sendMidiNote(user, event, velocity) {
-    this.broadcastToTouchDesigner({
-      type: "puppet.control",
-      timestamp: Date.now(),
-      puppetId: user.instrumentId,
-      role: user.instrumentLabel,
-      midiChannel: user.midiChannel,
-      controllerId: user.controllerId,
-      event,
-      midiNote: user.midiNote,
-      velocity
+  sendMidiChord(user, event, velocity) {
+    user.midiNotes.forEach((midiNote) => {
+      this.broadcastToTouchDesigner({
+        type: "puppet.control",
+        timestamp: Date.now(),
+        puppetId: user.instrumentId,
+        role: user.instrumentLabel,
+        midiChannel: user.midiChannel,
+        controllerId: user.controllerId,
+        event,
+        chordId: user.chordId,
+        chordLabel: user.chordLabel,
+        midiNote,
+        velocity
+      });
     });
   }
 
@@ -219,7 +225,7 @@ export class RealtimeHub {
     if (controller.userId) {
       const user = this.users.get(controller.userId);
       if (user) {
-        this.sendMidiNote(user, "note_off", 0);
+        this.sendMidiChord(user, "note_off", 0);
       }
       this.users.delete(controller.userId);
     }
@@ -279,7 +285,9 @@ export class RealtimeHub {
         instrumentId: user.instrumentId,
         instrumentLabel: user.instrumentLabel,
         midiChannel: user.midiChannel,
-        midiNote: user.midiNote,
+        chordId: user.chordId,
+        chordLabel: user.chordLabel,
+        midiNotes: user.midiNotes,
         color: user.color,
         energy: user.energy,
         shake: user.shake,

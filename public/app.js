@@ -1,4 +1,7 @@
 const instrumentGrid = document.querySelector("#instrumentGrid");
+const chordPanel = document.querySelector("#chordPanel");
+const chordGrid = document.querySelector("#chordGrid");
+const backToInstruments = document.querySelector("#backToInstruments");
 const motionPanel = document.querySelector("#motionPanel");
 const motionButton = document.querySelector("#motionButton");
 const socketDot = document.querySelector("#socketDot");
@@ -14,6 +17,7 @@ const notice = document.querySelector("#notice");
 let socket;
 let instruments = [];
 let assignedUser = null;
+let selectedInstrument = null;
 let reconnectTimer = null;
 let fallbackPulse = 0;
 let lastMotionSentAt = 0;
@@ -54,9 +58,32 @@ function renderInstruments() {
       <span>Canal MIDI ${instrument.channel}</span>
     `;
     button.addEventListener("click", () => {
-      send({ type: "user.join", instrumentId: instrument.id });
+      selectedInstrument = instrument;
+      renderChords(instrument);
     });
     instrumentGrid.append(button);
+  });
+}
+
+// A participant first picks an instrument, then chooses the chord their figure will hold.
+function renderChords(instrument) {
+  chordGrid.replaceChildren();
+  chordPanel.hidden = false;
+  motionPanel.hidden = true;
+
+  instrument.chords.forEach((chord) => {
+    const button = document.createElement("button");
+    button.className = "chord-card";
+    button.type = "button";
+    button.style.setProperty("--instrument-color", instrument.color);
+    button.innerHTML = `
+      <strong>${chord.label}</strong>
+      <span>${chord.notes.join(" . ")}</span>
+    `;
+    button.addEventListener("click", () => {
+      send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id });
+    });
+    chordGrid.append(button);
   });
 }
 
@@ -65,8 +92,8 @@ function renderAssignedUser(user) {
   assignedUser = user;
   motionPanel.hidden = false;
   orbPreview.style.setProperty("--instrument-color", user.color);
-  assignedTitle.textContent = user.instrumentLabel;
-  assignedNote.textContent = `Nota MIDI ${user.midiNote}. Agita para mantener viva tu figura.`;
+  assignedTitle.textContent = `${user.instrumentLabel} - ${user.chordLabel}`;
+  assignedNote.textContent = `Acorde MIDI ${user.midiNotes.join(" . ")}. Agita para mantener viva tu figura.`;
   setNotice("Tu figura ya esta en el escenario.");
 }
 
@@ -154,6 +181,14 @@ async function enableMotion() {
 }
 
 motionButton.addEventListener("click", enableMotion);
+
+backToInstruments.addEventListener("click", () => {
+  selectedInstrument = null;
+  assignedUser = null;
+  chordPanel.hidden = true;
+  motionPanel.hidden = true;
+  setNotice("Elige otro instrumento.");
+});
 
 // Manual fallback for laptops and for quick tests when sensor data is sparse.
 motionButton.addEventListener("pointerdown", () => {

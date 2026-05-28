@@ -29,8 +29,15 @@ export function normalizeControllerJoin(message) {
     return null;
   }
 
+  const instrument = INSTRUMENT_BY_ID.get(message.instrumentId);
+  const chordId = typeof message.chordId === "string" ? message.chordId : instrument.chords[0].id;
+  if (!instrument.chords.some((chord) => chord.id === chordId)) {
+    return null;
+  }
+
   return {
-    instrumentId: message.instrumentId
+    instrumentId: message.instrumentId,
+    chordId
   };
 }
 

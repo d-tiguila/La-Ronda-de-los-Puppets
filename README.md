@@ -2,8 +2,8 @@
 
 This prototype has two web surfaces:
 
-- `/` is the phone controller. A participant chooses an instrument and keeps
-  their figure alive by moving the phone.
+- `/` is the phone controller. A participant chooses an instrument, chooses a
+  chord, and keeps their figure alive by moving the phone.
 - `/stage.html` is the shared projected view. It renders geometric circles with
   Matter.js, animates them with GSAP, and triggers sound when the playhead
   crosses a figure.
@@ -76,10 +76,15 @@ receives the same event shape as before:
   "midiChannel": 1,
   "controllerId": "uuid",
   "event": "note_on",
+  "chordLabel": "C",
   "midiNote": 60,
   "velocity": 98
 }
 ```
+
+Chord figures are expanded server-side into multiple `puppet.control` messages,
+one per MIDI note. The existing TouchDesigner callback can keep sending each
+message through `midiout1`.
 
 State changes use `type: "server.state"` and include connected figures, the
 stage connection, and TouchDesigner connection.

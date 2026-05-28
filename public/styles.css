@@ -123,13 +123,15 @@ h2 {
   margin-bottom: 16px;
 }
 
-.instrument-grid {
+.instrument-grid,
+.chord-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 12px;
 }
 
-.instrument-card {
+.instrument-card,
+.chord-card {
   display: grid;
   min-height: 160px;
   padding: 18px;
@@ -142,11 +144,36 @@ h2 {
 }
 
 .instrument-card:hover,
-.instrument-card:focus-visible {
+.instrument-card:focus-visible,
+.chord-card:hover,
+.chord-card:focus-visible {
   border-color: var(--instrument-color);
   background: var(--surface-strong);
   outline: none;
   transform: translateY(-2px);
+}
+
+.chord-card {
+  min-height: 136px;
+  place-items: center;
+  text-align: center;
+}
+
+.chord-card strong {
+  font-size: clamp(2rem, 7vw, 3.3rem);
+}
+
+.chord-card span {
+  color: var(--muted);
+}
+
+.ghost-action {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  padding: 0 14px;
 }
 
 .instrument-dot {
@@ -332,7 +359,8 @@ h2 {
     flex-direction: column;
   }
 
-  .instrument-grid {
+  .instrument-grid,
+  .chord-grid {
     grid-template-columns: 1fr;
   }
 

@@ -66,7 +66,7 @@ function createBubble(user) {
   el.style.setProperty("--bubble-color", user.color);
   el.innerHTML = `
     <strong>${user.instrumentLabel}</strong>
-    <span>${user.midiNote}</span>
+    <span>${user.chordLabel}</span>
   `;
   worldEl.append(el);
   World.add(engine.world, body);
@@ -119,7 +119,7 @@ function syncBubbles(users) {
     bubble.el.style.setProperty("--bubble-color", user.color);
     bubble.el.classList.toggle("is-dormant", !user.alive);
     bubble.el.querySelector("strong").textContent = user.instrumentLabel;
-    bubble.el.querySelector("span").textContent = user.midiNote;
+    bubble.el.querySelector("span").textContent = user.chordLabel;
     Body.scale(bubble.body, scale, scale);
 
     // Tilt gives each participant a subtle steering influence over their shape.
