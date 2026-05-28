@@ -23,6 +23,7 @@ let fallbackPulse = 0;
 let lastMotionSentAt = 0;
 let lastMotionVector = null;
 let smoothedEnergy = 0;
+const STILL_DELTA_THRESHOLD = 0.22;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -148,8 +149,9 @@ function motionToEnergy(event) {
   const deltaY = y - previousVector.y;
   const deltaZ = z - previousVector.z;
   const deltaMagnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-  const lightstickGesture = Math.min(1, deltaMagnitude / 2.35);
-  const targetEnergy = lightstickGesture > 0.012 ? 0.18 + lightstickGesture * 0.82 : 0;
+  const rawGesture = Math.min(1, deltaMagnitude / 2.35);
+  const lightstickGesture = deltaMagnitude > STILL_DELTA_THRESHOLD ? rawGesture : 0;
+  const targetEnergy = lightstickGesture > 0 ? 0.18 + lightstickGesture * 0.82 : 0;
   const smoothing = targetEnergy > smoothedEnergy ? 0.34 : 0.24;
 
   lastMotionVector = currentVector;

@@ -14,7 +14,7 @@ const TRIGGER_COOLDOWN_MS = 320;
 const USER_TIMEOUT_MS = 4500;
 const USER_REMOVE_MS = 6500;
 const HEARTBEAT_INTERVAL_MS = 1000;
-const MOTION_ACTIVITY_THRESHOLD = 0.018;
+const MOTION_ACTIVITY_THRESHOLD = 0.075;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
