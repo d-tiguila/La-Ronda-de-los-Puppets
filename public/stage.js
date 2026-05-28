@@ -12,6 +12,9 @@ engine.gravity.y = 0;
 
 const bubbles = new Map();
 const DEMO_BUBBLE_COUNT = 12;
+const DEMO_INSTRUMENTS = ["pulse", "bass", "spark", "texture", "harmony"];
+const DEMO_CHORDS = ["c", "dm", "em", "f", "g"];
+const DEMO_CHORD_LABELS = ["C", "Dm", "Em", "F", "G"];
 let socket;
 let playheadX = 0;
 let playheadCycle = 0;
@@ -60,7 +63,7 @@ function createBubble(user) {
   const y = 90 + Math.random() * Math.max(80, height - 180);
   const body = Bodies.circle(x, y, radius, {
     restitution: 0.96,
-    frictionAir: 0.018
+    frictionAir: 0.035
   });
   const el = document.createElement("div");
   el.className = "bubble";
@@ -75,10 +78,18 @@ function createBubble(user) {
   const bubble = {
     id: user.id,
     demo: Boolean(user.demo),
+    instrumentId: user.instrumentId,
+    chordId: user.chordId,
     body,
     el,
     renderScale: 0,
+    visualOpacity: 1,
     radius,
+    physicsRadius: radius,
+    targetEnergy: user.energy,
+    targetTiltX: 0,
+    targetTiltY: 0,
+    windSeed: Math.random() * 1000,
     lastTriggeredCycle: -1
   };
 
@@ -100,15 +111,12 @@ function removeBubble(userId) {
 
   bubbles.delete(userId);
   World.remove(engine.world, bubble.body);
-  gsap.to(bubble, {
-    renderScale: 0,
-    duration: 0.36,
-    ease: "power2.in"
-  });
+  gsap.to(bubble, { renderScale: 0, duration: 0.72, ease: "power2.inOut" });
   gsap.to(bubble.el, {
     opacity: 0,
-    duration: 0.36,
-    ease: "power2.in",
+    duration: 0.72,
+    filter: "blur(12px) grayscale(0.7)",
+    ease: "power2.inOut",
     onComplete: () => bubble.el.remove()
   });
 }
@@ -126,19 +134,31 @@ function syncBubbles(users) {
   users.forEach((user) => {
     const bubble = bubbles.get(user.id) ?? createBubble(user);
     bubble.demo = false;
-    const targetRadius = user.alive ? 38 + user.energy * 32 : 22;
-    const scale = targetRadius / bubble.radius;
-    bubble.radius = targetRadius;
+    bubble.instrumentId = user.instrumentId;
+    bubble.chordId = user.chordId;
+    const targetRadius = user.alive ? 42 + user.energy * 30 : 30;
+    const scale = targetRadius / bubble.physicsRadius;
+    bubble.physicsRadius = targetRadius;
+    gsap.to(bubble, { radius: targetRadius, duration: 0.85, ease: "power2.out", overwrite: "auto" });
+    bubble.targetEnergy = user.energy;
+    bubble.targetTiltX = user.tiltX;
+    bubble.targetTiltY = user.tiltY;
     bubble.el.style.setProperty("--bubble-color", user.color);
-    bubble.el.classList.toggle("is-dormant", !user.alive);
     bubble.el.querySelector("strong").textContent = user.instrumentLabel;
     bubble.el.querySelector("span").textContent = user.chordLabel;
     Body.scale(bubble.body, scale, scale);
+    gsap.to(bubble.el, {
+      opacity: user.alive ? 1 : 0.42,
+      filter: user.alive ? "grayscale(0) blur(0px)" : "grayscale(0.55) blur(1.5px)",
+      duration: 1.15,
+      ease: "sine.inOut",
+      overwrite: "auto"
+    });
 
-    // Tilt gives each participant a subtle steering influence over their shape.
+    // Tilt gives each participant a soft steering influence, closer to a lightstick than a joystick.
     Body.applyForce(bubble.body, bubble.body.position, {
-      x: user.tiltX * (0.0008 + user.energy * 0.0012),
-      y: -user.tiltY * (0.0008 + user.energy * 0.0012)
+      x: user.tiltX * (0.00028 + user.energy * 0.00038),
+      y: -user.tiltY * (0.00028 + user.energy * 0.00038)
     });
   });
 
@@ -161,17 +181,20 @@ function pulseBubble(userId) {
   });
 }
 
-// Temporary visual-only bubbles let us test Matter.js density without extra phones.
+// Temporary demo bubbles let us test Matter.js density and MIDI sound without extra phones.
 function createDemoBubbles() {
   const colors = ["#f56f5c", "#40b3a2", "#f2bf4b", "#7a8ff0", "#d97fe7"];
-  const labels = ["C", "Dm", "Em", "F", "G"];
 
   for (let index = 0; index < DEMO_BUBBLE_COUNT; index += 1) {
+    const instrumentId = DEMO_INSTRUMENTS[index % DEMO_INSTRUMENTS.length];
+    const chordId = DEMO_CHORDS[index % DEMO_CHORDS.length];
     createBubble({
       id: `demo-${index}`,
       demo: true,
+      instrumentId,
+      chordId,
       instrumentLabel: "Demo",
-      chordLabel: labels[index % labels.length],
+      chordLabel: DEMO_CHORD_LABELS[index % DEMO_CHORD_LABELS.length],
       color: colors[index % colors.length],
       energy: 0.35 + Math.random() * 0.42,
       alive: true
@@ -226,11 +249,31 @@ function triggerCrossedBubbles() {
     if (distance <= bubble.radius && bubble.lastTriggeredCycle !== playheadCycle) {
       bubble.lastTriggeredCycle = playheadCycle;
       if (bubble.demo) {
-        pulseBubble(bubble.id);
+        send({
+          type: "stage.demoTrigger",
+          demoId: bubble.id,
+          instrumentId: bubble.instrumentId,
+          chordId: bubble.chordId,
+          energy: bubble.targetEnergy
+        });
       } else {
         send({ type: "stage.trigger", userId: bubble.id });
       }
     }
+  }
+}
+
+function applyAmbientForces(now) {
+  for (const bubble of bubbles.values()) {
+    const windA = Math.sin(now * 0.00055 + bubble.windSeed);
+    const windB = Math.cos(now * 0.00042 + bubble.windSeed * 1.7);
+    const demoLift = bubble.demo ? 0.00009 : 0.000035;
+    const userDrift = bubble.demo ? 0 : bubble.targetEnergy * 0.00008;
+
+    Body.applyForce(bubble.body, bubble.body.position, {
+      x: windA * (demoLift + userDrift),
+      y: windB * (demoLift * 0.75 + userDrift)
+    });
   }
 }
 
@@ -239,6 +282,7 @@ function render() {
   const deltaMs = now - lastTime;
   lastTime = now;
 
+  applyAmbientForces(now);
   Engine.update(engine, Math.min(deltaMs, 32));
   updatePlayhead(deltaMs);
   triggerCrossedBubbles();

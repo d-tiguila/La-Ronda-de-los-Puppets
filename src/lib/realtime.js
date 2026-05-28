@@ -14,6 +14,7 @@ const TRIGGER_COOLDOWN_MS = 320;
 const USER_TIMEOUT_MS = 4500;
 const USER_REMOVE_MS = 6500;
 const HEARTBEAT_INTERVAL_MS = 1000;
+const MOTION_ACTIVITY_THRESHOLD = 0.055;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -41,6 +42,7 @@ export class RealtimeHub {
     this.controllers = new Map();
     this.stageClients = new Set();
     this.touchDesignerClients = new Set();
+    this.demoLastTriggers = new Map();
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 
     server.on("upgrade", (request, socket, head) => this.upgrade(request, socket, head));
@@ -140,7 +142,12 @@ export class RealtimeHub {
       return;
     }
 
-    this.triggerUserSound(trigger.userId);
+    if (trigger.userId) {
+      this.triggerUserSound(trigger.userId);
+      return;
+    }
+
+    this.triggerDemoSound(trigger.demo);
   }
 
   createOrUpdateUser(controller, instrumentId, chordId) {
@@ -179,9 +186,16 @@ export class RealtimeHub {
       return;
     }
 
-    Object.assign(user, motion, {
-      alive: motion.energy > 0.08,
-      lastMotionAt: Date.now()
+    const now = Date.now();
+    const hasActiveGesture = motion.energy > MOTION_ACTIVITY_THRESHOLD || motion.shake > 0.025;
+
+    Object.assign(user, {
+      energy: user.energy * 0.72 + motion.energy * 0.28,
+      shake: user.shake * 0.6 + motion.shake * 0.4,
+      tiltX: user.tiltX * 0.78 + motion.tiltX * 0.22,
+      tiltY: user.tiltY * 0.78 + motion.tiltY * 0.22,
+      alive: hasActiveGesture || now - user.lastMotionAt < USER_TIMEOUT_MS,
+      lastMotionAt: hasActiveGesture ? now : user.lastMotionAt
     });
 
     this.broadcastState();
@@ -202,6 +216,24 @@ export class RealtimeHub {
 
     setTimeout(() => {
       this.sendMidiChord(user, "note_off", 0);
+    }, NOTE_DURATION_MS);
+  }
+
+  triggerDemoSound(demo) {
+    const now = Date.now();
+    const lastTriggerAt = this.demoLastTriggers.get(demo.id) ?? 0;
+
+    if (now - lastTriggerAt < TRIGGER_COOLDOWN_MS) {
+      return;
+    }
+
+    this.demoLastTriggers.set(demo.id, now);
+    const velocity = Math.max(28, Math.min(104, Math.round(38 + demo.energy * 66)));
+    this.sendMidiChord(demo, "note_on", velocity);
+    this.broadcastToStage({ type: "bubble.pulse", userId: demo.id, velocity });
+
+    setTimeout(() => {
+      this.sendMidiChord(demo, "note_off", 0);
     }, NOTE_DURATION_MS);
   }
 

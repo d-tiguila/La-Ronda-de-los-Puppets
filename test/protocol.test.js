@@ -39,3 +39,29 @@ test("accepts stage triggers with user ids", () => {
   });
   assert.equal(normalizeStageTrigger({ type: "stage.trigger", userId: 123 }), null);
 });
+
+test("accepts temporary stage demo triggers", () => {
+  assert.deepEqual(
+    normalizeStageTrigger({
+      type: "stage.demoTrigger",
+      demoId: "demo-1",
+      instrumentId: "pulse",
+      chordId: "g",
+      energy: 0.9
+    }),
+    {
+      demo: {
+        id: "demo-1",
+        controllerId: "stage-demo",
+        instrumentId: "pulse",
+        instrumentLabel: "Pulso",
+        midiChannel: 1,
+        chordId: "g",
+        chordLabel: "G",
+        midiNotes: [67, 71, 74],
+        energy: 0.9
+      }
+    }
+  );
+  assert.equal(normalizeStageTrigger({ type: "stage.demoTrigger", instrumentId: "bad" }), null);
+});

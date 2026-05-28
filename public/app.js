@@ -21,6 +21,8 @@ let selectedInstrument = null;
 let reconnectTimer = null;
 let fallbackPulse = 0;
 let lastMotionSentAt = 0;
+let lastMotionVector = null;
+let smoothedEnergy = 0.12;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -132,18 +134,27 @@ function connect() {
   });
 }
 
-// Convert acceleration into a stable 0-1 energy signal for the shared stage.
+// Convert lightstick-like movement into a gentle 0-1 energy signal for the shared stage.
 function motionToEnergy(event) {
   const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
   const x = acceleration.x ?? 0;
   const y = acceleration.y ?? 0;
   const z = acceleration.z ?? 0;
-  const magnitude = Math.sqrt(x * x + y * y + z * z);
-  const shake = Math.min(1, Math.max(0, (magnitude - 9.8) / 11));
+  const currentVector = { x, y, z };
+  const previousVector = lastMotionVector ?? currentVector;
+  const deltaX = x - previousVector.x;
+  const deltaY = y - previousVector.y;
+  const deltaZ = z - previousVector.z;
+  const deltaMagnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+  const lightstickGesture = Math.min(1, deltaMagnitude / 3.2);
+  const targetEnergy = lightstickGesture > 0.018 ? 0.2 + lightstickGesture * 0.8 : 0;
+
+  lastMotionVector = currentVector;
+  smoothedEnergy = smoothedEnergy * 0.86 + targetEnergy * 0.14;
 
   return {
-    energy: Math.min(1, Math.max(0.06, shake * 1.35)),
-    shake,
+    energy: Math.min(1, smoothedEnergy),
+    shake: lightstickGesture,
     tiltX: Math.max(-1, Math.min(1, x / 9.8)),
     tiltY: Math.max(-1, Math.min(1, y / 9.8))
   };
@@ -177,7 +188,7 @@ async function enableMotion() {
 
   window.addEventListener("devicemotion", (event) => sendMotion(motionToEnergy(event)));
   motionButton.textContent = "Mantener energia";
-  motionHint.textContent = "Agita suavemente o manten presionado para pruebas.";
+  motionHint.textContent = "Mueve el celular como un lightstick: suave, continuo y sin fuerza.";
 }
 
 motionButton.addEventListener("click", enableMotion);
