@@ -11,7 +11,9 @@ import {
 
 const NOTE_DURATION_MS = 220;
 const TRIGGER_COOLDOWN_MS = 320;
-const USER_TIMEOUT_MS = 7000;
+const USER_TIMEOUT_MS = 4500;
+const USER_REMOVE_MS = 6500;
+const HEARTBEAT_INTERVAL_MS = 1000;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -266,7 +268,7 @@ export class RealtimeHub {
         changed = true;
       }
 
-      if (!user.alive && user.energy <= 0.01 && now - user.lastMotionAt > USER_TIMEOUT_MS * 2) {
+      if (now - user.lastMotionAt > USER_REMOVE_MS) {
         this.users.delete(userId);
         changed = true;
       }
@@ -314,7 +316,7 @@ export class RealtimeHub {
         socket.isAlive = false;
         socket.ping();
       }
-    }, 30000);
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   close() {

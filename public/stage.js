@@ -11,6 +11,7 @@ const engine = Engine.create();
 engine.gravity.y = 0;
 
 const bubbles = new Map();
+const DEMO_BUBBLE_COUNT = 12;
 let socket;
 let playheadX = 0;
 let playheadCycle = 0;
@@ -73,14 +74,21 @@ function createBubble(user) {
 
   const bubble = {
     id: user.id,
+    demo: Boolean(user.demo),
     body,
     el,
+    renderScale: 0,
     radius,
     lastTriggeredCycle: -1
   };
 
   bubbles.set(user.id, bubble);
-  gsap.fromTo(el, { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.8)" });
+  gsap.to(bubble, {
+    renderScale: 1,
+    duration: 0.45,
+    ease: "back.out(1.8)"
+  });
+  gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.32, ease: "power2.out" });
   return bubble;
 }
 
@@ -92,10 +100,14 @@ function removeBubble(userId) {
 
   bubbles.delete(userId);
   World.remove(engine.world, bubble.body);
+  gsap.to(bubble, {
+    renderScale: 0,
+    duration: 0.36,
+    ease: "power2.in"
+  });
   gsap.to(bubble.el, {
-    scale: 0,
     opacity: 0,
-    duration: 0.28,
+    duration: 0.36,
     ease: "power2.in",
     onComplete: () => bubble.el.remove()
   });
@@ -105,14 +117,15 @@ function removeBubble(userId) {
 function syncBubbles(users) {
   const liveIds = new Set(users.map((user) => user.id));
 
-  for (const userId of bubbles.keys()) {
-    if (!liveIds.has(userId)) {
+  for (const [userId, bubble] of bubbles) {
+    if (!bubble.demo && !liveIds.has(userId)) {
       removeBubble(userId);
     }
   }
 
   users.forEach((user) => {
     const bubble = bubbles.get(user.id) ?? createBubble(user);
+    bubble.demo = false;
     const targetRadius = user.alive ? 38 + user.energy * 32 : 22;
     const scale = targetRadius / bubble.radius;
     bubble.radius = targetRadius;
@@ -124,12 +137,12 @@ function syncBubbles(users) {
 
     // Tilt gives each participant a subtle steering influence over their shape.
     Body.applyForce(bubble.body, bubble.body.position, {
-      x: user.tiltX * 0.0009,
-      y: -user.tiltY * 0.0009
+      x: user.tiltX * (0.0008 + user.energy * 0.0012),
+      y: -user.tiltY * (0.0008 + user.energy * 0.0012)
     });
   });
 
-  emptyState.hidden = users.length > 0;
+  emptyState.hidden = users.length > 0 || DEMO_BUBBLE_COUNT > 0;
   userCount.textContent = `${users.length} figura${users.length === 1 ? "" : "s"}`;
 }
 
@@ -140,12 +153,30 @@ function pulseBubble(userId) {
   }
 
   bubble.el.classList.add("is-triggered");
-  gsap.fromTo(bubble.el, { scale: 1.12 }, {
-    scale: 1,
+  gsap.fromTo(bubble, { renderScale: 1.16 }, {
+    renderScale: 1,
     duration: 0.32,
     ease: "elastic.out(1, 0.45)",
     onComplete: () => bubble.el.classList.remove("is-triggered")
   });
+}
+
+// Temporary visual-only bubbles let us test Matter.js density without extra phones.
+function createDemoBubbles() {
+  const colors = ["#f56f5c", "#40b3a2", "#f2bf4b", "#7a8ff0", "#d97fe7"];
+  const labels = ["C", "Dm", "Em", "F", "G"];
+
+  for (let index = 0; index < DEMO_BUBBLE_COUNT; index += 1) {
+    createBubble({
+      id: `demo-${index}`,
+      demo: true,
+      instrumentLabel: "Demo",
+      chordLabel: labels[index % labels.length],
+      color: colors[index % colors.length],
+      energy: 0.35 + Math.random() * 0.42,
+      alive: true
+    });
+  }
 }
 
 function receive(event) {
@@ -194,7 +225,11 @@ function triggerCrossedBubbles() {
     const distance = Math.abs(bubble.body.position.x - playheadX);
     if (distance <= bubble.radius && bubble.lastTriggeredCycle !== playheadCycle) {
       bubble.lastTriggeredCycle = playheadCycle;
-      send({ type: "stage.trigger", userId: bubble.id });
+      if (bubble.demo) {
+        pulseBubble(bubble.id);
+      } else {
+        send({ type: "stage.trigger", userId: bubble.id });
+      }
     }
   }
 }
@@ -212,7 +247,7 @@ function render() {
     const { x, y } = bubble.body.position;
     bubble.el.style.width = `${bubble.radius * 2}px`;
     bubble.el.style.height = `${bubble.radius * 2}px`;
-    bubble.el.style.transform = `translate(${x - bubble.radius}px, ${y - bubble.radius}px)`;
+    bubble.el.style.transform = `translate(${x - bubble.radius}px, ${y - bubble.radius}px) scale(${bubble.renderScale})`;
   }
 
   requestAnimationFrame(render);
@@ -220,5 +255,6 @@ function render() {
 
 window.addEventListener("resize", rebuildBounds);
 rebuildBounds();
+createDemoBubbles();
 connect();
 render();
