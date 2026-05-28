@@ -17,7 +17,7 @@ const DEMO_INSTRUMENTS = ["pulse", "bass", "spark", "texture", "harmony"];
 const DEMO_CHORDS = ["c", "dm", "em", "f", "g"];
 const DEMO_CHORD_LABELS = ["C", "Dm", "Em", "F", "G"];
 let socket;
-let playheadX = 0;
+let sequencerRadius = 0;
 let playheadCycle = 0;
 let lastTime = performance.now();
 let paused = false;
@@ -41,6 +41,27 @@ function worldSize() {
   };
 }
 
+function gardenCenter() {
+  const { width, height } = worldSize();
+  return {
+    x: width / 2,
+    y: height / 2
+  };
+}
+
+function randomGardenPosition() {
+  const { width, height } = worldSize();
+  const center = gardenCenter();
+  const maxRadius = Math.max(80, Math.min(width, height) * 0.42);
+  const radius = 70 + Math.random() * Math.max(40, maxRadius - 70);
+  const angle = Math.random() * Math.PI * 2;
+
+  return {
+    x: center.x + Math.cos(angle) * radius,
+    y: center.y + Math.sin(angle) * radius
+  };
+}
+
 // Keep invisible Matter.js walls aligned with the browser viewport.
 function rebuildBounds() {
   const { width, height } = worldSize();
@@ -59,20 +80,25 @@ function rebuildBounds() {
 }
 
 function createBubble(user) {
-  const { width, height } = worldSize();
   const radius = 38 + user.energy * 28;
-  const x = 90 + Math.random() * Math.max(80, width - 180);
-  const y = 90 + Math.random() * Math.max(80, height - 180);
+  const { x, y } = randomGardenPosition();
   const body = Bodies.circle(x, y, radius, {
     restitution: 0.96,
     frictionAir: 0.035
   });
   const el = document.createElement("div");
-  el.className = "bubble";
+  el.className = "bubble flower";
   el.style.setProperty("--bubble-color", user.color);
   el.innerHTML = `
-    <strong>${user.instrumentLabel}</strong>
-    <span>${user.chordLabel}</span>
+    <span class="petal petal-a"></span>
+    <span class="petal petal-b"></span>
+    <span class="petal petal-c"></span>
+    <span class="petal petal-d"></span>
+    <span class="flower-core"></span>
+    <span class="flower-label">
+      <strong>${user.instrumentLabel}</strong>
+      <em>${user.chordLabel}</em>
+    </span>
   `;
   worldEl.append(el);
   World.add(engine.world, body);
@@ -151,7 +177,7 @@ function syncBubbles(users) {
     bubble.shakeBurst = Math.max(bubble.shakeBurst * 0.82, user.shake);
     bubble.el.style.setProperty("--bubble-color", user.color);
     bubble.el.querySelector("strong").textContent = user.instrumentLabel;
-    bubble.el.querySelector("span").textContent = user.chordLabel;
+    bubble.el.querySelector("em").textContent = user.chordLabel;
     bubble.el.classList.toggle("is-shaking", user.shake > 0.08);
     Body.scale(bubble.body, scale, scale);
     gsap.to(bubble.el, {
@@ -170,21 +196,21 @@ function syncBubbles(users) {
   });
 
   emptyState.hidden = users.length > 0 || DEMO_BUBBLE_COUNT > 0;
-  userCount.textContent = `${users.length} figura${users.length === 1 ? "" : "s"}`;
+  userCount.textContent = `${users.length} flor${users.length === 1 ? "" : "es"}`;
 }
 
-function pulseBubble(userId) {
+function bloomFlower(userId) {
   const bubble = bubbles.get(userId);
   if (!bubble) {
     return;
   }
 
-  bubble.el.classList.add("is-triggered");
-  gsap.fromTo(bubble, { renderScale: 1.16 }, {
+  bubble.el.classList.add("is-triggered", "is-blooming");
+  gsap.fromTo(bubble, { renderScale: 1.24 }, {
     renderScale: 1,
-    duration: 0.32,
-    ease: "elastic.out(1, 0.45)",
-    onComplete: () => bubble.el.classList.remove("is-triggered")
+    duration: 0.72,
+    ease: "elastic.out(1, 0.48)",
+    onComplete: () => bubble.el.classList.remove("is-triggered", "is-blooming")
   });
 }
 
@@ -220,7 +246,7 @@ function receive(event) {
   }
 
   if (message.type === "bubble.pulse") {
-    pulseBubble(message.userId);
+    bloomFlower(message.userId);
   }
 }
 
@@ -237,23 +263,34 @@ function connect() {
   });
 }
 
-// A moving playhead turns spatial positions into musical timing.
-function updatePlayhead(deltaMs) {
-  const { width } = worldSize();
-  playheadX += deltaMs * 0.14;
+// A radial wave turns distance from the center into musical timing.
+function updateSequencer(deltaMs) {
+  const { width, height } = worldSize();
+  const center = gardenCenter();
+  const maxRadius = Math.hypot(width, height) / 2 + 90;
+  sequencerRadius += deltaMs * 0.135;
 
-  if (playheadX > width + 40) {
-    playheadX = -40;
+  if (sequencerRadius > maxRadius) {
+    sequencerRadius = 0;
     playheadCycle += 1;
   }
 
-  playheadEl.style.transform = `translateX(${playheadX}px)`;
+  playheadEl.style.width = `${sequencerRadius * 2}px`;
+  playheadEl.style.height = `${sequencerRadius * 2}px`;
+  playheadEl.style.transform = `translate(${center.x - sequencerRadius}px, ${center.y - sequencerRadius}px)`;
 }
 
-function triggerCrossedBubbles() {
+function triggerCrossedFlowers() {
+  const center = gardenCenter();
+
   for (const bubble of bubbles.values()) {
-    const distance = Math.abs(bubble.body.position.x - playheadX);
-    if (distance <= bubble.radius && bubble.lastTriggeredCycle !== playheadCycle) {
+    const distanceFromCenter = Math.hypot(
+      bubble.body.position.x - center.x,
+      bubble.body.position.y - center.y
+    );
+    const touchedByWave = Math.abs(distanceFromCenter - sequencerRadius) <= bubble.radius;
+
+    if (touchedByWave && bubble.lastTriggeredCycle !== playheadCycle) {
       bubble.lastTriggeredCycle = playheadCycle;
       if (bubble.demo) {
         send({
@@ -302,8 +339,8 @@ function render() {
   if (!paused) {
     applyAmbientForces(now);
     Engine.update(engine, Math.min(deltaMs, 32));
-    updatePlayhead(deltaMs);
-    triggerCrossedBubbles();
+    updateSequencer(deltaMs);
+    triggerCrossedFlowers();
   }
 
   for (const bubble of bubbles.values()) {
