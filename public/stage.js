@@ -31,6 +31,7 @@ let playheadCycle = 0;
 let lastTime = performance.now();
 let paused = false;
 let paperCanvas;
+let puppetLayer;
 
 function socketUrl() {
   const url = new URL("/ws?role=stage", window.location.href);
@@ -101,15 +102,24 @@ function demoStagePosition(index) {
 }
 
 function setupPaperCanvas() {
+  puppetLayer = document.createElement("div");
+  puppetLayer.className = "puppet-layer";
+  worldEl.append(puppetLayer);
+
   paperCanvas = document.createElement("canvas");
   paperCanvas.className = "puppet-canvas";
   worldEl.append(paperCanvas);
-  paper.setup(paperCanvas);
-  resizePaperCanvas();
+  try {
+    paper.setup(paperCanvas);
+    resizePaperCanvas();
+  } catch (error) {
+    console.warn("Paper render disabled; SVG fallback remains active.", error);
+    paperCanvas.hidden = true;
+  }
 }
 
 function resizePaperCanvas() {
-  if (!paperCanvas) {
+  if (!paperCanvas || paperCanvas.hidden || !window.paper?.view) {
     return;
   }
 
@@ -339,6 +349,44 @@ function createPuppetArt(user, size) {
   return { group, body, mouth: face.mouth, style, kind };
 }
 
+function createPuppetElement(user) {
+  const seed = seededNumber(user.id);
+  const palette = randomFrom(BODY_PALETTES, seed);
+  const kind = randomFrom(["blob", "bean", "pill", "triangle", "star"], seed + 3);
+  const element = document.createElement("div");
+  element.className = `dom-puppet is-${kind}`;
+  element.style.setProperty("--body-a", palette[0]);
+  element.style.setProperty("--body-b", palette[1]);
+  element.style.setProperty("--accent", palette[2]);
+  element.innerHTML = `
+    <svg viewBox="-80 -90 160 180" aria-hidden="true">
+      <path class="limb arm-left" d="M -45 12 C -75 18 -80 48 -68 58" />
+      <path class="limb arm-right" d="M 45 12 C 76 18 82 48 70 58" />
+      <path class="limb leg-left" d="M -22 54 C -28 78 -24 86 -38 92" />
+      <path class="limb leg-right" d="M 22 54 C 28 78 24 86 38 92" />
+      <path class="body body-blob" d="M -52 -24 C -46 -66 4 -80 43 -55 C 77 -33 70 28 36 58 C -5 95 -65 61 -67 10 C -68 -8 -62 -18 -52 -24 Z" />
+      <path class="body body-bean" d="M -56 -40 C -24 -76 46 -68 62 -22 C 78 27 34 77 -24 66 C -80 56 -90 0 -56 -40 Z" />
+      <path class="body body-pill" d="M -38 -66 C -10 -86 38 -72 46 -35 L 56 32 C 62 73 -4 88 -42 55 C -76 24 -70 -44 -38 -66 Z" />
+      <path class="body body-triangle" d="M 0 -72 L 66 58 L -66 58 Z" />
+      <path class="body body-star" d="M 0 -76 L 18 -31 L 63 -49 L 45 -4 L 76 29 L 30 31 L 19 76 L -8 38 L -51 58 L -36 13 L -76 -9 L -29 -19 Z" />
+      <path class="stripe stripe-one" d="M -42 -26 C -10 -38 18 -30 48 -42" />
+      <path class="stripe stripe-two" d="M -54 8 C -12 -3 20 10 55 0" />
+      <path class="stripe stripe-three" d="M -38 38 C -6 24 23 40 42 29" />
+      <ellipse class="eye eye-left" cx="-22" cy="-18" rx="13" ry="20" />
+      <ellipse class="eye eye-right" cx="22" cy="-18" rx="13" ry="20" />
+      <ellipse class="pupil pupil-left" cx="-18" cy="-14" rx="5" ry="8" />
+      <ellipse class="pupil pupil-right" cx="26" cy="-14" rx="5" ry="8" />
+      <path class="brow" d="M -36 -43 L -12 -48 M 12 -48 L 36 -43" />
+      <ellipse class="mouth" cx="0" cy="30" rx="15" ry="6" />
+    </svg>
+  `;
+  puppetLayer.append(element);
+  return {
+    element,
+    mouth: element.querySelector(".mouth")
+  };
+}
+
 function createPuppet(user) {
   const radius = 44 + user.energy * 26;
   const { x, y } = user.demoIndex === undefined ? randomStagePosition() : demoStagePosition(user.demoIndex);
@@ -346,7 +394,15 @@ function createPuppet(user) {
     restitution: 0.94,
     frictionAir: 0.038
   });
-  const art = createPuppetArt(user, radius * 0.78);
+  let art = null;
+  if (window.paper?.project) {
+    try {
+      art = createPuppetArt(user, radius * 0.78);
+    } catch (error) {
+      console.warn("Paper puppet failed; SVG puppet remains active.", error);
+    }
+  }
+  const dom = createPuppetElement(user);
 
   World.add(engine.world, body);
 
@@ -356,8 +412,10 @@ function createPuppet(user) {
     instrumentId: user.instrumentId,
     chordId: user.chordId,
     body,
-    group: art.group,
-    mouth: art.mouth,
+    group: art?.group ?? null,
+    mouth: art?.mouth ?? null,
+    domElement: dom.element,
+    domMouth: dom.mouth,
     radius,
     physicsRadius: radius,
     targetEnergy: user.energy,
@@ -392,7 +450,10 @@ function removePuppet(userId) {
     mouthOpen: 0,
     duration: 0.72,
     ease: "power2.inOut",
-    onComplete: () => puppet.group.remove()
+    onComplete: () => {
+      puppet.group?.remove();
+      puppet.domElement?.remove();
+    }
   });
 }
 
@@ -576,11 +637,21 @@ function drawPuppets(now) {
     const squashY = puppet.anim.scaleY;
     const wiggle = Math.sin(now * 0.012 + puppet.windSeed) * 3 + puppet.anim.wiggle * 8;
 
-    puppet.group.position = new paper.Point(x, y);
-    puppet.group.scaling = new paper.Point(squashX, squashY);
-    puppet.group.rotation = wiggle;
-    puppet.group.opacity = Math.max(squashX, squashY);
-    puppet.mouth.scaling = new paper.Point(1 + puppet.anim.mouthOpen * 0.35, 0.35 + puppet.anim.mouthOpen * 2.5);
+    if (puppet.group && window.paper?.Point) {
+      puppet.group.position = new paper.Point(x, y);
+      puppet.group.scaling = new paper.Point(squashX, squashY);
+      puppet.group.rotation = wiggle;
+      puppet.group.opacity = Math.max(squashX, squashY);
+      puppet.mouth.scaling = new paper.Point(1 + puppet.anim.mouthOpen * 0.35, 0.35 + puppet.anim.mouthOpen * 2.5);
+    }
+
+    if (puppet.domElement) {
+      puppet.domElement.style.width = `${puppet.radius * 2.6}px`;
+      puppet.domElement.style.height = `${puppet.radius * 2.6}px`;
+      puppet.domElement.style.opacity = Math.max(squashX, squashY);
+      puppet.domElement.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${wiggle}deg) scale(${squashX}, ${squashY})`;
+      puppet.domMouth.style.transform = `scale(${1 + puppet.anim.mouthOpen * 0.35}, ${0.45 + puppet.anim.mouthOpen * 2.8})`;
+    }
   }
 }
 
@@ -611,7 +682,9 @@ function render() {
   }
 
   drawPuppets(now);
-  paper.view.update();
+  if (window.paper?.view && !paperCanvas.hidden) {
+    paper.view.update();
+  }
   requestAnimationFrame(render);
 }
 

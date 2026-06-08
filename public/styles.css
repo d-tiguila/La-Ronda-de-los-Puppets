@@ -408,6 +408,93 @@ h2 {
   z-index: 4;
 }
 
+.puppet-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.dom-puppet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 128px;
+  height: 148px;
+  opacity: 0;
+  transform-origin: center center;
+  will-change: opacity, transform;
+}
+
+.dom-puppet svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 11px 0 rgba(7, 16, 19, 0.18));
+}
+
+.dom-puppet .limb {
+  fill: none;
+  stroke: #071013;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 7px;
+}
+
+.dom-puppet .body {
+  display: none;
+  fill: var(--body-a);
+  stroke: #071013;
+  stroke-width: 0;
+}
+
+.dom-puppet.is-blob .body-blob,
+.dom-puppet.is-bean .body-bean,
+.dom-puppet.is-pill .body-pill,
+.dom-puppet.is-triangle .body-triangle,
+.dom-puppet.is-star .body-star {
+  display: block;
+}
+
+.dom-puppet.is-bean .body-bean,
+.dom-puppet.is-triangle .body-triangle {
+  fill: var(--body-b);
+}
+
+.dom-puppet.is-star .body-star {
+  fill: var(--accent);
+  stroke-width: 3px;
+}
+
+.dom-puppet .stripe {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-width: 6px;
+  opacity: 0.78;
+}
+
+.dom-puppet .eye {
+  fill: #f7f2e8;
+}
+
+.dom-puppet .pupil,
+.dom-puppet .mouth {
+  fill: #071013;
+}
+
+.dom-puppet .brow {
+  fill: none;
+  stroke: #071013;
+  stroke-linecap: round;
+  stroke-width: 5px;
+}
+
+.dom-puppet .mouth {
+  transform-box: fill-box;
+  transform-origin: center center;
+}
+
 .bubble {
   position: absolute;
   display: block;
