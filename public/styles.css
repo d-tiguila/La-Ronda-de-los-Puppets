@@ -381,8 +381,7 @@ h2 {
 }
 
 .stage-world.floor-world::before,
-.stage-world.floor-world::after,
-.stage-world.floor-world .radial-wave {
+.stage-world.floor-world::after {
   display: none;
 }
 
@@ -397,6 +396,17 @@ h2 {
     inset 0 0 32px rgba(247, 242, 232, 0.22);
   pointer-events: none;
   z-index: 3;
+}
+
+.stage-world.floor-world .radial-wave {
+  display: block;
+  border-color: rgba(255, 242, 180, 0.84);
+  box-shadow:
+    0 0 24px rgba(255, 226, 104, 0.66),
+    inset 0 0 30px rgba(255, 255, 255, 0.24);
+  mix-blend-mode: screen;
+  opacity: 0.82;
+  z-index: 7;
 }
 
 .puppet-canvas {

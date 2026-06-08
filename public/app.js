@@ -22,8 +22,9 @@ let reconnectTimer = null;
 let fallbackPulse = 0;
 let lastMotionSentAt = 0;
 let lastMotionVector = null;
-let smoothedEnergy = 0;
-const STILL_DELTA_THRESHOLD = 0.5;
+let latestOrientationAt = 0;
+let fallbackTiltPhase = 0;
+let smoothedTilt = { x: 0, y: 0 };
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -94,17 +95,17 @@ function renderChords(instrument) {
 function renderAssignedUser(user) {
   assignedUser = user;
   lastMotionVector = null;
-  smoothedEnergy = 0;
+  smoothedTilt = { x: 0, y: 0 };
   motionPanel.hidden = false;
   orbPreview.style.setProperty("--instrument-color", user.color);
   assignedTitle.textContent = `${user.instrumentLabel} - ${user.chordLabel}`;
-  assignedNote.textContent = `Acorde MIDI ${user.midiNotes.join(" . ")}. Agita para mantener viva tu figura.`;
+  assignedNote.textContent = `Acorde MIDI ${user.midiNotes.join(" . ")}. Inclina el telefono para mover tu figura.`;
   setNotice("Tu figura ya esta en el escenario.");
 }
 
 function releaseAssignedUser() {
   assignedUser = null;
-  smoothedEnergy = 0;
+  smoothedTilt = { x: 0, y: 0 };
   lastMotionVector = null;
   energyFill.style.width = "0%";
   orbPreview.style.transform = "scale(0.92)";
@@ -159,32 +160,45 @@ function connect() {
   });
 }
 
-// Convert lightstick-like movement into a gentle 0-1 energy signal for the shared stage.
-function motionToEnergy(event) {
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function tiltToMotion(rawTiltX, rawTiltY) {
+  smoothedTilt = {
+    x: smoothedTilt.x * 0.68 + clamp(rawTiltX, -1, 1) * 0.32,
+    y: smoothedTilt.y * 0.68 + clamp(rawTiltY, -1, 1) * 0.32
+  };
+
+  const tiltAmount = clamp(Math.hypot(smoothedTilt.x, smoothedTilt.y), 0, 1);
+
+  return {
+    energy: 0.58 + tiltAmount * 0.34,
+    shake: tiltAmount,
+    tiltX: smoothedTilt.x,
+    tiltY: smoothedTilt.y
+  };
+}
+
+// Device orientation gives the participant direct puppet steering with the phone rotation.
+function orientationToMotion(event) {
+  latestOrientationAt = performance.now();
+  const gamma = event.gamma ?? 0;
+  const beta = event.beta ?? 0;
+
+  return tiltToMotion(gamma / 38, beta / 38);
+}
+
+// Some browsers expose only motion acceleration; use gravity as a fallback tilt source.
+function accelerationToMotion(event) {
   const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
   const x = acceleration.x ?? 0;
   const y = acceleration.y ?? 0;
   const z = acceleration.z ?? 0;
   const currentVector = { x, y, z };
-  const previousVector = lastMotionVector ?? currentVector;
-  const deltaX = x - previousVector.x;
-  const deltaY = y - previousVector.y;
-  const deltaZ = z - previousVector.z;
-  const deltaMagnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-  const rawGesture = Math.min(1, deltaMagnitude / 2.35);
-  const lightstickGesture = deltaMagnitude > STILL_DELTA_THRESHOLD ? rawGesture : 0;
-  const targetEnergy = lightstickGesture > 0 ? 0.18 + lightstickGesture * 0.82 : 0;
-  const smoothing = targetEnergy > smoothedEnergy ? 0.34 : 0.24;
 
   lastMotionVector = currentVector;
-  smoothedEnergy = smoothedEnergy * (1 - smoothing) + targetEnergy * smoothing;
-
-  return {
-    energy: Math.min(1, smoothedEnergy),
-    shake: lightstickGesture,
-    tiltX: Math.max(-1, Math.min(1, x / 9.8)),
-    tiltY: Math.max(-1, Math.min(1, y / 9.8))
-  };
+  return tiltToMotion(x / 8.8, y / 8.8);
 }
 
 function sendMotion(motion) {
@@ -198,24 +212,33 @@ function sendMotion(motion) {
   }
 
   lastMotionSentAt = now;
-  energyFill.style.width = `${Math.round(motion.energy * 100)}%`;
-  orbPreview.style.transform = `scale(${0.92 + motion.energy * 0.28})`;
+  energyFill.style.width = `${Math.round(Math.hypot(motion.tiltX, motion.tiltY) * 100)}%`;
+  orbPreview.style.transform = `translate(${motion.tiltX * 14}px, ${motion.tiltY * 14}px) scale(${0.98 + motion.shake * 0.14})`;
   send({ type: "user.motion", ...motion });
 }
 
 async function enableMotion() {
-  // iOS requires the permission request to happen inside a user gesture.
-  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-    const permission = await DeviceMotionEvent.requestPermission();
+  // iOS requires sensor permission requests to happen inside a user gesture.
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    const permission = await DeviceOrientationEvent.requestPermission();
     if (permission !== "granted") {
-      motionHint.textContent = "No se concedio permiso de movimiento. Usa el boton para simular energia.";
+      motionHint.textContent = "No se concedio permiso de orientacion. Mantén presionado el boton para probar.";
       return;
     }
   }
 
-  window.addEventListener("devicemotion", (event) => sendMotion(motionToEnergy(event)));
-  motionButton.textContent = "Mantener energia";
-  motionHint.textContent = "Mueve el celular como un lightstick: suave, continuo y sin fuerza.";
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    await DeviceMotionEvent.requestPermission().catch(() => null);
+  }
+
+  window.addEventListener("deviceorientation", (event) => sendMotion(orientationToMotion(event)));
+  window.addEventListener("devicemotion", (event) => {
+    if (performance.now() - latestOrientationAt > 500) {
+      sendMotion(accelerationToMotion(event));
+    }
+  });
+  motionButton.textContent = "Control activo";
+  motionHint.textContent = "Inclina el celular suavemente para empujar tu personaje.";
 }
 
 motionButton.addEventListener("click", enableMotion);
@@ -231,17 +254,17 @@ backToInstruments.addEventListener("click", () => {
 // Manual fallback for laptops and for quick tests when sensor data is sparse.
 motionButton.addEventListener("pointerdown", () => {
   fallbackPulse = 1;
-  sendMotion({ energy: 1, shake: 1, tiltX: 0, tiltY: 0 });
 });
 
 motionButton.addEventListener("pointerup", () => {
   fallbackPulse = 0;
-  sendMotion({ energy: 0.12, shake: 0, tiltX: 0, tiltY: 0 });
+  sendMotion(tiltToMotion(0, 0));
 });
 
 setInterval(() => {
   if (fallbackPulse > 0) {
-    sendMotion({ energy: 0.8, shake: 0.8, tiltX: 0, tiltY: 0 });
+    fallbackTiltPhase += 0.42;
+    sendMotion(tiltToMotion(Math.cos(fallbackTiltPhase) * 0.85, Math.sin(fallbackTiltPhase) * 0.85));
   }
 }, 180);
 

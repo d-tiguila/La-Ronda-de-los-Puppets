@@ -388,7 +388,7 @@ function createPuppetElement(user) {
 }
 
 function createPuppet(user) {
-  const radius = 44 + user.energy * 26;
+  const radius = 58;
   const { x, y } = user.demoIndex === undefined ? randomStagePosition() : demoStagePosition(user.demoIndex);
   const body = Bodies.circle(x, y, radius, {
     restitution: 0.94,
@@ -474,17 +474,19 @@ function syncPuppets(users) {
     puppet.chordId = user.chordId;
     puppet.targetEnergy = user.energy;
     puppet.targetShake = user.shake;
-    puppet.shakeBurst = Math.max(puppet.shakeBurst * 0.82, user.shake);
+    puppet.shakeBurst = Math.max(puppet.shakeBurst * 0.78, Math.hypot(user.tiltX, user.tiltY));
 
-    const targetRadius = user.alive ? 48 + user.energy * 28 : 34;
+    const targetRadius = user.alive ? 58 : 36;
     const scale = targetRadius / puppet.physicsRadius;
     puppet.physicsRadius = targetRadius;
     puppet.radius = targetRadius;
     Body.scale(puppet.body, scale, scale);
 
+    const tiltAmount = Math.min(1, Math.hypot(user.tiltX, user.tiltY));
+    const controlForce = 0.00115 + tiltAmount * 0.00125;
     Body.applyForce(puppet.body, puppet.body.position, {
-      x: user.tiltX * (0.00042 + user.energy * 0.00052),
-      y: -user.tiltY * (0.00042 + user.energy * 0.00052)
+      x: user.tiltX * controlForce,
+      y: user.tiltY * controlForce
     });
   });
 
@@ -568,7 +570,7 @@ function connect() {
   });
 }
 
-// The radial sequencer remains invisible on the projection page but still times the choir.
+// The radial sequencer expands from the center and triggers figures as it crosses them.
 function updateSequencer(deltaMs) {
   const { width, height } = worldSize();
   const center = stageCenter();
@@ -617,8 +619,8 @@ function applyAmbientForces(now) {
     const windA = Math.sin(now * 0.00055 + puppet.windSeed);
     const windB = Math.cos(now * 0.00042 + puppet.windSeed * 1.7);
     const demoDrift = puppet.demo ? 0.0001 : 0.00004;
-    const userDrift = puppet.demo ? 0 : puppet.targetEnergy * 0.00008;
-    const shakePush = puppet.demo ? 0 : puppet.shakeBurst * 0.0012;
+    const userDrift = puppet.demo ? 0 : 0.000035;
+    const shakePush = puppet.demo ? 0 : puppet.shakeBurst * 0.00045;
     const shakeA = Math.sin(now * 0.0018 + puppet.windSeed * 2.3);
     const shakeB = Math.cos(now * 0.0015 + puppet.windSeed * 3.1);
 

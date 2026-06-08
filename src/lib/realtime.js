@@ -14,7 +14,6 @@ const TRIGGER_COOLDOWN_MS = 320;
 const USER_TIMEOUT_MS = 2500;
 const USER_REMOVE_MS = 4200;
 const HEARTBEAT_INTERVAL_MS = 1000;
-const MOTION_ACTIVITY_THRESHOLD = 0.18;
 
 function send(socket, message) {
   if (socket.readyState === WebSocket.OPEN) {
@@ -173,7 +172,7 @@ export class RealtimeHub {
       chordLabel: chord.label,
       midiNotes: chord.notes,
       color: instrument.color,
-      energy: existing?.energy ?? 0.55,
+      energy: existing?.energy ?? 0.72,
       shake: existing?.shake ?? 0,
       tiltX: existing?.tiltX ?? 0,
       tiltY: existing?.tiltY ?? 0,
@@ -195,16 +194,15 @@ export class RealtimeHub {
     }
 
     const now = Date.now();
-    // Liveness should follow recent real motion, not smoothed visual energy.
-    const hasActiveGesture = motion.shake > MOTION_ACTIVITY_THRESHOLD;
+    const tiltAmount = Math.min(1, Math.hypot(motion.tiltX, motion.tiltY));
 
     Object.assign(user, {
-      energy: user.energy * 0.72 + motion.energy * 0.28,
-      shake: user.shake * 0.6 + motion.shake * 0.4,
+      energy: user.energy * 0.78 + (0.58 + tiltAmount * 0.34) * 0.22,
+      shake: user.shake * 0.55 + tiltAmount * 0.45,
       tiltX: user.tiltX * 0.78 + motion.tiltX * 0.22,
       tiltY: user.tiltY * 0.78 + motion.tiltY * 0.22,
-      alive: hasActiveGesture || now - user.lastMotionAt < USER_TIMEOUT_MS,
-      lastMotionAt: hasActiveGesture ? now : user.lastMotionAt
+      alive: true,
+      lastMotionAt: now
     });
 
     this.broadcastState();
@@ -305,7 +303,7 @@ export class RealtimeHub {
     for (const [userId, user] of this.users) {
       if (now - user.lastMotionAt > USER_TIMEOUT_MS) {
         user.alive = false;
-        user.energy = Math.max(0, user.energy - 0.08);
+        user.energy = Math.max(0.42, user.energy - 0.04);
         changed = true;
       }
 
