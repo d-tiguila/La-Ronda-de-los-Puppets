@@ -115,7 +115,7 @@ function renderChordMenu(instrument) {
     })),
     (chord) => {
       enableMotion();
-      send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id });
+      send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id, visualSeed: characterSeed });
       setNotice("");
       gsap.to(characterEl, { scale: 1.16, yoyo: true, repeat: 1, duration: 0.18, ease: "power2.out" });
     }
@@ -149,18 +149,18 @@ function sendMotion(motion) {
   }
 
   lastMotionSentAt = now;
-  characterEl.style.transform = `translate(${motion.tiltX * 18}px, ${motion.tiltY * 18}px) rotate(${motion.tiltX * 8}deg)`;
+  characterEl.style.transform = `translate(${motion.tiltX * 26}px, ${motion.tiltY * 34}px) rotate(${motion.tiltX * 10}deg)`;
   send({ type: "user.motion", ...motion });
 }
 
 function orientationToMotion(event) {
   latestOrientationAt = performance.now();
-  return tiltToMotion((event.gamma ?? 0) / 28, (event.beta ?? 0) / 28);
+  return tiltToMotion((event.gamma ?? 0) / 20, (event.beta ?? 0) / 16);
 }
 
 function accelerationToMotion(event) {
   const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
-  return tiltToMotion((acceleration.x ?? 0) / 7.2, (acceleration.y ?? 0) / 7.2);
+  return tiltToMotion((acceleration.x ?? 0) / 5.6, (acceleration.y ?? 0) / 4.6);
 }
 
 async function enableMotion() {

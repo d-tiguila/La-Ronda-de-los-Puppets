@@ -1,4 +1,5 @@
 const PALETTE = ["#ef3e2e", "#f15a25", "#ffc808", "#527fc0", "#5d588e", "#e97da4", "#cbc54b", "#028057", "#f2e5d2"];
+const RECOLORABLE = ["#ef3e2e", "#f15a25", "#ffc808", "#527fc0", "#5d588e", "#e97da4", "#cbc54b", "#028057", "#f2e5d2", "#fec662"];
 
 const PUPPET_TEMPLATES = [
   {
@@ -58,7 +59,14 @@ export function paletteColor(index) {
   return PALETTE[Math.abs(index) % PALETTE.length];
 }
 
+function recolorTemplate(html, seed) {
+  return RECOLORABLE.reduce((output, color, index) => {
+    const nextColor = paletteColor(seed + index * 2);
+    return output.replaceAll(`fill="${color}"`, `fill="${nextColor}"`);
+  }, html);
+}
+
 export function createPuppetSvg(seed = 0, className = "puppet-svg") {
   const template = PUPPET_TEMPLATES[Math.abs(seed) % PUPPET_TEMPLATES.length];
-  return `<svg class="${className}" viewBox="${template.viewBox}" aria-hidden="true">${template.html}</svg>`;
+  return `<svg class="${className}" viewBox="${template.viewBox}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${recolorTemplate(template.html, seed)}</svg>`;
 }

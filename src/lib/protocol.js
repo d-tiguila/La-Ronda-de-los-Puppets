@@ -37,7 +37,8 @@ export function normalizeControllerJoin(message) {
 
   return {
     instrumentId: message.instrumentId,
-    chordId
+    chordId,
+    visualSeed: normalizeNumber(message.visualSeed, 0, 999999, 0)
   };
 }
 

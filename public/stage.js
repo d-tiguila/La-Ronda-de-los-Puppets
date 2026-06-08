@@ -353,14 +353,17 @@ function createPuppetArt(user, size) {
 }
 
 function createPuppetElement(user) {
-  const seed = seededNumber(user.id);
+  const seed = Number.isFinite(user.visualSeed) ? user.visualSeed : seededNumber(user.id);
   const element = document.createElement("div");
   element.className = "dom-puppet";
   element.innerHTML = createPuppetSvg(seed, "puppet-svg");
+  const mouth = element.querySelector(".puppet-mouth");
   puppetLayer.append(element);
   return {
     element,
-    mouth: element.querySelector(".puppet-mouth")
+    mouth,
+    mouthRx: Number(mouth?.getAttribute("rx") ?? 18),
+    mouthRy: Number(mouth?.getAttribute("ry") ?? 19)
   };
 }
 
@@ -387,6 +390,8 @@ function createPuppet(user) {
     mouth: art?.mouth ?? null,
     domElement: dom.element,
     domMouth: dom.mouth,
+    domMouthRx: dom.mouthRx,
+    domMouthRy: dom.mouthRy,
     radius,
     physicsRadius: radius,
     targetEnergy: user.energy,
@@ -456,10 +461,10 @@ function syncPuppets(users) {
     Body.scale(puppet.body, scale, scale);
 
     const tiltAmount = Math.min(1, Math.hypot(user.tiltX, user.tiltY));
-    const controlForce = 0.0029 + tiltAmount * 0.0034;
+    const controlForce = 0.0052 + tiltAmount * 0.0068;
     Body.applyForce(puppet.body, puppet.body.position, {
       x: user.tiltX * controlForce,
-      y: user.tiltY * controlForce
+      y: user.tiltY * controlForce * 1.35
     });
   });
 
@@ -509,6 +514,7 @@ function createDemoPuppets() {
       id: `demo-${index}`,
       demo: true,
       demoIndex: index,
+      visualSeed: index,
       instrumentId,
       chordId,
       instrumentLabel: "Demo",
@@ -609,7 +615,7 @@ function applyAmbientForces(now) {
     const windB = Math.cos(now * 0.00042 + puppet.windSeed * 1.7);
     const demoDrift = puppet.demo ? 0.0001 : 0.00004;
     const userDrift = puppet.demo ? 0 : 0.000035;
-    const shakePush = puppet.demo ? 0 : puppet.shakeBurst * 0.00045;
+    const shakePush = puppet.demo ? 0 : puppet.shakeBurst * 0.00032;
     const shakeA = Math.sin(now * 0.0018 + puppet.windSeed * 2.3);
     const shakeB = Math.cos(now * 0.0015 + puppet.windSeed * 3.1);
 
@@ -642,7 +648,8 @@ function drawPuppets(now) {
       puppet.domElement.style.opacity = Math.max(squashX, squashY);
       const hitScale = 1 + puppet.anim.hit * 0.16;
       puppet.domElement.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${wiggle}deg) scale(${squashX * hitScale}, ${squashY / hitScale})`;
-      puppet.domMouth.style.transform = `scale(${1 + puppet.anim.mouthOpen * 0.35}, ${0.45 + puppet.anim.mouthOpen * 2.8})`;
+      puppet.domMouth?.setAttribute("rx", String(puppet.domMouthRx * (1 + puppet.anim.mouthOpen * 0.12)));
+      puppet.domMouth?.setAttribute("ry", String(puppet.domMouthRy * (1 + puppet.anim.mouthOpen * 0.85)));
     }
   }
 }

@@ -115,7 +115,7 @@ export class RealtimeHub {
     const join = normalizeControllerJoin(message);
 
     if (join) {
-      this.createOrUpdateUser(controller, join.instrumentId, join.chordId);
+      this.createOrUpdateUser(controller, join.instrumentId, join.chordId, join.visualSeed);
       return;
     }
 
@@ -157,7 +157,7 @@ export class RealtimeHub {
     this.triggerDemoSound(trigger.demo);
   }
 
-  createOrUpdateUser(controller, instrumentId, chordId) {
+  createOrUpdateUser(controller, instrumentId, chordId, visualSeed = 0) {
     const instrument = INSTRUMENT_BY_ID.get(instrumentId);
     const chord = findChord(instrument, chordId);
     const userId = controller.userId ?? randomUUID();
@@ -172,6 +172,7 @@ export class RealtimeHub {
       chordLabel: chord.label,
       midiNotes: chord.notes,
       color: instrument.color,
+      visualSeed,
       energy: existing?.energy ?? 0.72,
       shake: existing?.shake ?? 0,
       tiltX: existing?.tiltX ?? 0,
@@ -330,6 +331,7 @@ export class RealtimeHub {
         chordLabel: user.chordLabel,
         midiNotes: user.midiNotes,
         color: user.color,
+        visualSeed: user.visualSeed,
         energy: user.energy,
         shake: user.shake,
         tiltX: user.tiltX,

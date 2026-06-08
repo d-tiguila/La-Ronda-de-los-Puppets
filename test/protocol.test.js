@@ -9,7 +9,13 @@ import {
 test("accepts known instrument joins only", () => {
   assert.deepEqual(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse", chordId: "g" }), {
     instrumentId: "pulse",
-    chordId: "g"
+    chordId: "g",
+    visualSeed: 0
+  });
+  assert.deepEqual(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse", chordId: "g", visualSeed: 123 }), {
+    instrumentId: "pulse",
+    chordId: "g",
+    visualSeed: 123
   });
   assert.equal(normalizeControllerJoin({ type: "user.join", instrumentId: "unknown" }), null);
   assert.equal(normalizeControllerJoin({ type: "user.join", instrumentId: "pulse", chordId: "bad" }), null);
