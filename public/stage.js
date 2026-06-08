@@ -35,6 +35,8 @@ let lastTime = performance.now();
 let paused = false;
 let paperCanvas;
 let puppetLayer;
+let stageId = null;
+let isSequencerActive = true;
 
 function socketUrl() {
   const url = new URL("/ws?role=stage", window.location.href);
@@ -529,9 +531,15 @@ function createDemoPuppets() {
 function receive(event) {
   const message = JSON.parse(event.data);
 
+  if (message.stageId) {
+    stageId = message.stageId;
+  }
+
   if (message.state) {
     syncPuppets(message.state.users);
     setPaused(Boolean(message.state.paused));
+    isSequencerActive = !message.state.activeStageId || message.state.activeStageId === stageId;
+    playheadEl.hidden = !isSequencerActive;
 
     if (tdState) {
       tdState.textContent = message.state.touchDesignerConnected
@@ -676,8 +684,10 @@ function render() {
   if (!paused) {
     applyAmbientForces(now);
     Engine.update(engine, Math.min(deltaMs, 32));
-    updateSequencer(deltaMs);
-    triggerCrossedPuppets();
+    if (isSequencerActive) {
+      updateSequencer(deltaMs);
+      triggerCrossedPuppets();
+    }
   }
 
   drawPuppets(now);

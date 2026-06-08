@@ -40,6 +40,7 @@ export class RealtimeHub {
     this.users = new Map();
     this.controllers = new Map();
     this.stageClients = new Set();
+    this.activeStageSocket = null;
     this.touchDesignerClients = new Set();
     this.demoLastTriggers = new Map();
     this.paused = false;
@@ -86,10 +87,19 @@ export class RealtimeHub {
     }
 
     if (client.role === "stage") {
+      socket.stageId = randomUUID();
       this.stageClients.add(socket);
-      send(socket, { type: "server.ready", state: this.snapshot() });
+      this.activeStageSocket = socket;
+      send(socket, { type: "server.ready", stageId: socket.stageId, state: this.snapshot() });
       socket.on("message", (raw) => this.receiveStageMessage(socket, raw));
-      socket.on("close", () => this.stageClients.delete(socket));
+      socket.on("close", () => {
+        this.stageClients.delete(socket);
+        if (this.activeStageSocket === socket) {
+          this.activeStageSocket = [...this.stageClients].at(-1) ?? null;
+        }
+        this.broadcastState();
+      });
+      this.broadcastState();
       return;
     }
 
@@ -146,6 +156,10 @@ export class RealtimeHub {
 
     if (!trigger) {
       send(socket, { type: "server.error", code: "invalid_stage_message" });
+      return;
+    }
+
+    if (socket !== this.activeStageSocket) {
       return;
     }
 
@@ -340,6 +354,7 @@ export class RealtimeHub {
       })),
       controllerCount: this.controllers.size,
       stageConnected: this.stageClients.size > 0,
+      activeStageId: this.activeStageSocket?.stageId ?? null,
       touchDesignerConnected: this.touchDesignerClients.size > 0,
       paused: this.paused
     };
