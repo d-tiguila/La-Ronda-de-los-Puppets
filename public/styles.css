@@ -707,31 +707,37 @@ h2 {
   border: 0;
   border-radius: 50%;
   background: var(--item-color, #ffc808);
-  color: #071013;
   cursor: pointer;
-  font-size: clamp(0.78rem, 2.6vmin, 1rem);
-  font-weight: 900;
-  line-height: 1;
-  padding: 12px;
-  text-align: center;
+  outline: 0;
+  padding: 0;
   transform-origin: center center;
 }
 
-.radial-item span {
-  display: block;
-  max-width: 8ch;
-  overflow-wrap: anywhere;
+.radial-item::after {
+  position: absolute;
+  inset: 9%;
+  border: 2px solid rgba(247, 242, 232, 0.58);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.radial-item:focus-visible {
+  box-shadow: 0 0 0 4px rgba(7, 16, 19, 0.22);
 }
 
 .controller-notice {
   position: absolute;
-  bottom: max(18px, env(safe-area-inset-bottom));
+  top: calc(50% + min(45vmin, 255px));
   left: 50%;
+  width: min(76vw, 360px);
   margin: 0;
-  color: #071013;
-  font-size: 0.9rem;
-  font-weight: 800;
-  opacity: 0.58;
+  color: #4f5752;
+  font-size: clamp(0.82rem, 2.8vmin, 0.98rem);
+  font-weight: 750;
+  line-height: 1.25;
+  opacity: 0.88;
+  text-align: center;
   transform: translateX(-50%);
   z-index: 4;
 }

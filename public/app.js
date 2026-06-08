@@ -16,6 +16,13 @@ let latestOrientationAt = 0;
 let smoothedTilt = { x: 0, y: 0 };
 let motionEnabled = false;
 
+const COPY = {
+  instrument: "Elige una voz para entrar a la ronda.",
+  chord: "Elige el acorde de tu marioneta.",
+  motion: "Mueve tu telefono para guiarla.",
+  reconnecting: "Reconectando"
+};
+
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
   url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -79,9 +86,9 @@ function buildMenu(items, onSelect, radius) {
     const button = document.createElement("button");
     button.className = "radial-item";
     button.type = "button";
+    button.setAttribute("aria-label", item.ariaLabel || item.label || "Opcion musical");
     button.style.setProperty("--item-color", item.color);
     button.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%)`;
-    button.innerHTML = `<span>${item.label}</span>`;
     button.addEventListener("click", () => onSelect(item));
     radialMenu.append(button);
   });
@@ -94,10 +101,12 @@ function buildMenu(items, onSelect, radius) {
 }
 
 function renderInstrumentMenu() {
+  setNotice(COPY.instrument);
   renderRadialMenu(
     instruments.map((instrument) => ({
       ...instrument,
-      color: instrument.color
+      color: instrument.color,
+      ariaLabel: `Voz color ${instrument.color}`
     })),
     (instrument) => {
       selectedInstrument = instrument;
@@ -108,15 +117,17 @@ function renderInstrumentMenu() {
 }
 
 function renderChordMenu(instrument) {
+  setNotice(COPY.chord);
   renderRadialMenu(
     instrument.chords.map((chord, index) => ({
       ...chord,
-      color: paletteColor(index + characterSeed)
+      color: paletteColor(index + characterSeed),
+      ariaLabel: `Acorde ${index + 1}`
     })),
     (chord) => {
       enableMotion();
       send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id, visualSeed: characterSeed });
-      setNotice("");
+      setNotice(COPY.motion);
       gsap.to(characterEl, { scale: 1.16, yoyo: true, repeat: 1, duration: 0.18, ease: "power2.out" });
     }
   );
@@ -171,7 +182,7 @@ async function enableMotion() {
   if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
     const permission = await DeviceOrientationEvent.requestPermission();
     if (permission !== "granted") {
-      setNotice("Activa orientacion para mover tu puppet.");
+      setNotice("Activa movimiento para guiarla.");
       return;
     }
   }
@@ -199,7 +210,8 @@ function receive(event) {
 
   if (message.type === "user.assigned") {
     assignedUser = message.user;
-    renderRadialMenu([{ label: message.user.chordLabel, color: message.user.color }], () => {
+    setNotice(COPY.motion);
+    renderRadialMenu([{ label: message.user.chordLabel, color: message.user.color, ariaLabel: "Marioneta activa" }], () => {
       assignedUser = null;
       selectedInstrument ? renderChordMenu(selectedInstrument) : renderInstrumentMenu();
     });
@@ -218,7 +230,7 @@ function connect() {
   socket.addEventListener("open", () => setNotice(""));
   socket.addEventListener("message", receive);
   socket.addEventListener("close", () => {
-    setNotice("Reconectando");
+    setNotice(COPY.reconnecting);
     reconnectTimer = setTimeout(connect, 1200);
   });
 }
