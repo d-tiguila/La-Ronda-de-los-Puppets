@@ -1,4 +1,6 @@
-const { Engine, World, Bodies, Body } = Matter;
+import { createPuppetSvg } from "./puppet-art.js";
+
+const { Engine, World, Bodies, Body, Events } = Matter;
 
 const worldEl = document.querySelector("#stageWorld");
 const playheadEl = document.querySelector("#playhead");
@@ -12,6 +14,7 @@ const engine = Engine.create();
 engine.gravity.y = 0;
 
 const puppets = new Map();
+const bodyToPuppet = new Map();
 const DEMO_PUPPET_COUNT = 10;
 const DEMO_INSTRUMENTS = ["pulse", "bass", "spark", "texture", "harmony"];
 const DEMO_CHORDS = ["c", "dm", "em", "f", "g"];
@@ -351,39 +354,13 @@ function createPuppetArt(user, size) {
 
 function createPuppetElement(user) {
   const seed = seededNumber(user.id);
-  const palette = randomFrom(BODY_PALETTES, seed);
-  const kind = randomFrom(["blob", "bean", "pill", "triangle", "star"], seed + 3);
   const element = document.createElement("div");
-  element.className = `dom-puppet is-${kind}`;
-  element.style.setProperty("--body-a", palette[0]);
-  element.style.setProperty("--body-b", palette[1]);
-  element.style.setProperty("--accent", palette[2]);
-  element.innerHTML = `
-    <svg viewBox="-80 -90 160 180" aria-hidden="true">
-      <path class="limb arm-left" d="M -45 12 C -75 18 -80 48 -68 58" />
-      <path class="limb arm-right" d="M 45 12 C 76 18 82 48 70 58" />
-      <path class="limb leg-left" d="M -22 54 C -28 78 -24 86 -38 92" />
-      <path class="limb leg-right" d="M 22 54 C 28 78 24 86 38 92" />
-      <path class="body body-blob" d="M -52 -24 C -46 -66 4 -80 43 -55 C 77 -33 70 28 36 58 C -5 95 -65 61 -67 10 C -68 -8 -62 -18 -52 -24 Z" />
-      <path class="body body-bean" d="M -56 -40 C -24 -76 46 -68 62 -22 C 78 27 34 77 -24 66 C -80 56 -90 0 -56 -40 Z" />
-      <path class="body body-pill" d="M -38 -66 C -10 -86 38 -72 46 -35 L 56 32 C 62 73 -4 88 -42 55 C -76 24 -70 -44 -38 -66 Z" />
-      <path class="body body-triangle" d="M 0 -72 L 66 58 L -66 58 Z" />
-      <path class="body body-star" d="M 0 -76 L 18 -31 L 63 -49 L 45 -4 L 76 29 L 30 31 L 19 76 L -8 38 L -51 58 L -36 13 L -76 -9 L -29 -19 Z" />
-      <path class="stripe stripe-one" d="M -42 -26 C -10 -38 18 -30 48 -42" />
-      <path class="stripe stripe-two" d="M -54 8 C -12 -3 20 10 55 0" />
-      <path class="stripe stripe-three" d="M -38 38 C -6 24 23 40 42 29" />
-      <ellipse class="eye eye-left" cx="-22" cy="-18" rx="13" ry="20" />
-      <ellipse class="eye eye-right" cx="22" cy="-18" rx="13" ry="20" />
-      <ellipse class="pupil pupil-left" cx="-18" cy="-14" rx="5" ry="8" />
-      <ellipse class="pupil pupil-right" cx="26" cy="-14" rx="5" ry="8" />
-      <path class="brow" d="M -36 -43 L -12 -48 M 12 -48 L 36 -43" />
-      <ellipse class="mouth" cx="0" cy="30" rx="15" ry="6" />
-    </svg>
-  `;
+  element.className = "dom-puppet";
+  element.innerHTML = createPuppetSvg(seed, "puppet-svg");
   puppetLayer.append(element);
   return {
     element,
-    mouth: element.querySelector(".mouth")
+    mouth: element.querySelector(".puppet-mouth")
   };
 }
 
@@ -394,17 +371,11 @@ function createPuppet(user) {
     restitution: 0.94,
     frictionAir: 0.038
   });
-  let art = null;
-  if (window.paper?.project) {
-    try {
-      art = createPuppetArt(user, radius * 0.78);
-    } catch (error) {
-      console.warn("Paper puppet failed; SVG puppet remains active.", error);
-    }
-  }
+  const art = null;
   const dom = createPuppetElement(user);
 
   World.add(engine.world, body);
+  bodyToPuppet.set(body.id, user.id);
 
   const puppet = {
     id: user.id,
@@ -426,7 +397,8 @@ function createPuppet(user) {
       scaleX: 0,
       scaleY: 0,
       mouthOpen: 0,
-      wiggle: 0
+      wiggle: 0,
+      hit: 0
     },
     lastTriggeredCycle: -1
   };
@@ -444,6 +416,7 @@ function removePuppet(userId) {
 
   puppets.delete(userId);
   World.remove(engine.world, puppet.body);
+  bodyToPuppet.delete(puppet.body.id);
   gsap.to(puppet.anim, {
     scaleX: 0,
     scaleY: 0,
@@ -483,7 +456,7 @@ function syncPuppets(users) {
     Body.scale(puppet.body, scale, scale);
 
     const tiltAmount = Math.min(1, Math.hypot(user.tiltX, user.tiltY));
-    const controlForce = 0.00115 + tiltAmount * 0.00125;
+    const controlForce = 0.0029 + tiltAmount * 0.0034;
     Body.applyForce(puppet.body, puppet.body.position, {
       x: user.tiltX * controlForce,
       y: user.tiltY * controlForce
@@ -496,6 +469,22 @@ function syncPuppets(users) {
 
   if (userCount) {
     userCount.textContent = `${users.length} muppet${users.length === 1 ? "" : "s"}`;
+  }
+}
+
+function bumpPuppet(puppet) {
+  if (!puppet) {
+    return;
+  }
+
+  gsap.killTweensOf(puppet.anim, "hit");
+  gsap.timeline()
+    .to(puppet.anim, { hit: 1, wiggle: puppet.anim.wiggle + 1.3, duration: 0.08, ease: "power2.out" })
+    .to(puppet.anim, { hit: 0, wiggle: 0, duration: 0.28, ease: "elastic.out(1, 0.55)" });
+
+  if (puppet.domElement) {
+    puppet.domElement.classList.add("is-colliding");
+    window.setTimeout(() => puppet.domElement?.classList.remove("is-colliding"), 180);
   }
 }
 
@@ -651,7 +640,8 @@ function drawPuppets(now) {
       puppet.domElement.style.width = `${puppet.radius * 2.6}px`;
       puppet.domElement.style.height = `${puppet.radius * 2.6}px`;
       puppet.domElement.style.opacity = Math.max(squashX, squashY);
-      puppet.domElement.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${wiggle}deg) scale(${squashX}, ${squashY})`;
+      const hitScale = 1 + puppet.anim.hit * 0.16;
+      puppet.domElement.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${wiggle}deg) scale(${squashX * hitScale}, ${squashY / hitScale})`;
       puppet.domMouth.style.transform = `scale(${1 + puppet.anim.mouthOpen * 0.35}, ${0.45 + puppet.anim.mouthOpen * 2.8})`;
     }
   }
@@ -695,6 +685,12 @@ window.addEventListener("resize", () => {
   rebuildBounds();
 });
 pauseButton?.addEventListener("click", togglePause);
+Events.on(engine, "collisionStart", (event) => {
+  for (const pair of event.pairs) {
+    bumpPuppet(puppets.get(bodyToPuppet.get(pair.bodyA.id)));
+    bumpPuppet(puppets.get(bodyToPuppet.get(pair.bodyB.id)));
+  }
+});
 
 setupPaperCanvas();
 rebuildBounds();

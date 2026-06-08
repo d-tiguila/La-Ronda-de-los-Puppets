@@ -3,63 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Control de Figura Sonora</title>
+    <title>La Ronda de los Puppets</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body class="controller-page">
-    <main class="phone-shell">
-      <header class="phone-header">
-        <div>
-          <p class="eyebrow">Figura sonora</p>
-          <h1>Entra al ensamble</h1>
-        </div>
-        <div class="connection">
-          <span id="socketDot" class="dot" aria-hidden="true"></span>
-          <span id="socketLabel">Conectando</span>
-        </div>
-      </header>
-
-      <section class="panel" aria-labelledby="instrumentTitle">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Paso 1</p>
-            <h2 id="instrumentTitle">Elige tu instrumento</h2>
-          </div>
-          <p id="stageState" class="status-pill">Stage sin conectar</p>
-        </div>
-        <div id="instrumentGrid" class="instrument-grid" aria-live="polite"></div>
-      </section>
-
-      <section id="chordPanel" class="panel chord-panel" aria-labelledby="chordTitle" hidden>
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Paso 2</p>
-            <h2 id="chordTitle">Elige tu acorde</h2>
-          </div>
-          <button id="backToInstruments" class="ghost-action" type="button">Cambiar instrumento</button>
-        </div>
-        <div id="chordGrid" class="chord-grid" aria-live="polite"></div>
-      </section>
-
-      <section id="motionPanel" class="panel motion-panel" hidden>
-        <div class="orb-preview" id="orbPreview" aria-hidden="true">
-          <span></span>
-        </div>
-        <h2 id="assignedTitle">Tu figura esta naciendo</h2>
-        <p id="assignedNote" class="support-copy">Inclina el telefono para moverla por el escenario.</p>
-
-        <button id="motionButton" class="primary-action" type="button">
-          Activar movimiento
-        </button>
-
-        <div class="energy-meter" aria-label="Rotacion del telefono">
-          <span id="energyFill"></span>
-        </div>
-        <p id="motionHint" class="notice">En iPhone toca el boton para permitir sensores de orientacion.</p>
-      </section>
-
-      <p id="notice" class="notice" role="status"></p>
+    <main class="controller-shell" aria-live="polite">
+      <div id="phoneCharacter" class="phone-character" aria-hidden="true"></div>
+      <nav id="radialMenu" class="radial-menu" aria-label="Opciones musicales"></nav>
+      <p id="notice" class="controller-notice" role="status"></p>
     </main>
+
+    <script src="/vendor/gsap.min.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

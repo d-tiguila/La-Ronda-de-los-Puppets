@@ -1,30 +1,20 @@
-const instrumentGrid = document.querySelector("#instrumentGrid");
-const chordPanel = document.querySelector("#chordPanel");
-const chordGrid = document.querySelector("#chordGrid");
-const backToInstruments = document.querySelector("#backToInstruments");
-const motionPanel = document.querySelector("#motionPanel");
-const motionButton = document.querySelector("#motionButton");
-const socketDot = document.querySelector("#socketDot");
-const socketLabel = document.querySelector("#socketLabel");
-const stageState = document.querySelector("#stageState");
-const assignedTitle = document.querySelector("#assignedTitle");
-const assignedNote = document.querySelector("#assignedNote");
-const orbPreview = document.querySelector("#orbPreview");
-const energyFill = document.querySelector("#energyFill");
-const motionHint = document.querySelector("#motionHint");
+import { createPuppetSvg, paletteColor } from "./puppet-art.js";
+
+const characterEl = document.querySelector("#phoneCharacter");
+const radialMenu = document.querySelector("#radialMenu");
 const notice = document.querySelector("#notice");
+
+const characterSeed = Math.floor(Math.random() * 100000);
 
 let socket;
 let instruments = [];
-let assignedUser = null;
 let selectedInstrument = null;
+let assignedUser = null;
 let reconnectTimer = null;
-let fallbackPulse = 0;
 let lastMotionSentAt = 0;
-let lastMotionVector = null;
 let latestOrientationAt = 0;
-let fallbackTiltPhase = 0;
 let smoothedTilt = { x: 0, y: 0 };
+let motionEnabled = false;
 
 function socketUrl() {
   const url = new URL("/ws?role=controller", window.location.href);
@@ -32,12 +22,7 @@ function socketUrl() {
   return url;
 }
 
-function setSocketStatus(label, className) {
-  socketLabel.textContent = label;
-  socketDot.className = `dot ${className}`;
-}
-
-function setNotice(message) {
+function setNotice(message = "") {
   notice.textContent = message;
 }
 
@@ -47,158 +32,110 @@ function send(message) {
   }
 }
 
-// Build the instrument picker from the server state so Ableton channel changes stay centralized.
-function renderInstruments() {
-  instrumentGrid.replaceChildren();
-
-  instruments.forEach((instrument) => {
-    const button = document.createElement("button");
-    button.className = "instrument-card";
-    button.type = "button";
-    button.style.setProperty("--instrument-color", instrument.color);
-    button.innerHTML = `
-      <span class="instrument-dot"></span>
-      <strong>${instrument.label}</strong>
-      <span>Canal MIDI ${instrument.channel}</span>
-    `;
-    button.addEventListener("click", () => {
-      selectedInstrument = instrument;
-      renderChords(instrument);
-    });
-    instrumentGrid.append(button);
-  });
-}
-
-// A participant first picks an instrument, then chooses the chord their figure will hold.
-function renderChords(instrument) {
-  chordGrid.replaceChildren();
-  chordPanel.hidden = false;
-  motionPanel.hidden = true;
-
-  instrument.chords.forEach((chord) => {
-    const button = document.createElement("button");
-    button.className = "chord-card";
-    button.type = "button";
-    button.style.setProperty("--instrument-color", instrument.color);
-    button.innerHTML = `
-      <strong>${chord.label}</strong>
-      <span>${chord.notes.join(" . ")}</span>
-    `;
-    button.addEventListener("click", () => {
-      send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id });
-    });
-    chordGrid.append(button);
-  });
-}
-
-// Reflect the assigned sound bubble on the phone so the participant knows they are live.
-function renderAssignedUser(user) {
-  assignedUser = user;
-  lastMotionVector = null;
-  smoothedTilt = { x: 0, y: 0 };
-  motionPanel.hidden = false;
-  orbPreview.style.setProperty("--instrument-color", user.color);
-  assignedTitle.textContent = `${user.instrumentLabel} - ${user.chordLabel}`;
-  assignedNote.textContent = `Acorde MIDI ${user.midiNotes.join(" . ")}. Inclina el telefono para mover tu figura.`;
-  setNotice("Tu figura ya esta en el escenario.");
-}
-
-function releaseAssignedUser() {
-  assignedUser = null;
-  smoothedTilt = { x: 0, y: 0 };
-  lastMotionVector = null;
-  energyFill.style.width = "0%";
-  orbPreview.style.transform = "scale(0.92)";
-  motionPanel.hidden = true;
-
-  if (selectedInstrument) {
-    renderChords(selectedInstrument);
-    setNotice("Tu flor se marchito. Elige un acorde para sembrar otra.");
-    return;
-  }
-
-  chordPanel.hidden = true;
-  setNotice("Tu flor se marchito. Elige un instrumento para sembrar otra.");
-}
-
-function receive(event) {
-  const message = JSON.parse(event.data);
-
-  if (message.instruments) {
-    instruments = message.instruments;
-    renderInstruments();
-  }
-
-  if (message.state) {
-    stageState.textContent = message.state.stageConnected ? "Stage conectado" : "Stage sin conectar";
-
-    if (assignedUser && !message.state.users.some((user) => user.id === assignedUser.id)) {
-      releaseAssignedUser();
-    }
-  }
-
-  if (message.type === "user.assigned") {
-    renderAssignedUser(message.user);
-  }
-}
-
-function connect() {
-  clearTimeout(reconnectTimer);
-  setSocketStatus("Conectando", "");
-  socket = new WebSocket(socketUrl());
-
-  socket.addEventListener("open", () => {
-    setSocketStatus("En linea", "online");
-    setNotice("Elige un instrumento para crear tu figura.");
-  });
-
-  socket.addEventListener("message", receive);
-  socket.addEventListener("close", () => {
-    setSocketStatus("Reconectando", "offline");
-    setNotice("Se perdio la conexion. Reintentando.");
-    reconnectTimer = setTimeout(connect, 1200);
-  });
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function polarPoint(index, total, radius) {
+  const startAngle = total <= 5 ? -90 : -120;
+  const angle = (startAngle + (360 / total) * index) * (Math.PI / 180);
+
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius
+  };
+}
+
+function renderCharacter() {
+  characterEl.innerHTML = createPuppetSvg(characterSeed, "phone-puppet-svg");
+  characterEl.style.setProperty("--menu-color", paletteColor(characterSeed));
+  gsap.fromTo(characterEl, { scale: 0.78, rotate: -4, opacity: 0 }, { scale: 1, rotate: 0, opacity: 1, duration: 0.62, ease: "back.out(1.7)" });
+}
+
+function renderRadialMenu(items, onSelect) {
+  const oldItems = [...radialMenu.children];
+  const radius = Math.min(window.innerWidth, window.innerHeight) * 0.31;
+
+  if (oldItems.length) {
+    gsap.to(oldItems, {
+      scale: 0.72,
+      opacity: 0,
+      duration: 0.18,
+      stagger: 0.018,
+      ease: "power2.in",
+      onComplete: () => buildMenu(items, onSelect, radius)
+    });
+    return;
+  }
+
+  buildMenu(items, onSelect, radius);
+}
+
+function buildMenu(items, onSelect, radius) {
+  radialMenu.replaceChildren();
+
+  items.forEach((item, index) => {
+    const point = polarPoint(index, items.length, radius);
+    const button = document.createElement("button");
+    button.className = "radial-item";
+    button.type = "button";
+    button.style.setProperty("--item-color", item.color);
+    button.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%)`;
+    button.innerHTML = `<span>${item.label}</span>`;
+    button.addEventListener("click", () => onSelect(item));
+    radialMenu.append(button);
+  });
+
+  gsap.fromTo(
+    radialMenu.children,
+    { scale: 0.62, opacity: 0, rotate: -8 },
+    { scale: 1, opacity: 1, rotate: 0, duration: 0.42, stagger: 0.035, ease: "back.out(1.45)" }
+  );
+}
+
+function renderInstrumentMenu() {
+  renderRadialMenu(
+    instruments.map((instrument) => ({
+      ...instrument,
+      color: instrument.color
+    })),
+    (instrument) => {
+      selectedInstrument = instrument;
+      gsap.to(characterEl, { scale: 1.07, rotate: 4, yoyo: true, repeat: 1, duration: 0.16, ease: "power2.out" });
+      renderChordMenu(instrument);
+    }
+  );
+}
+
+function renderChordMenu(instrument) {
+  renderRadialMenu(
+    instrument.chords.map((chord, index) => ({
+      ...chord,
+      color: paletteColor(index + characterSeed)
+    })),
+    (chord) => {
+      enableMotion();
+      send({ type: "user.join", instrumentId: instrument.id, chordId: chord.id });
+      setNotice("");
+      gsap.to(characterEl, { scale: 1.16, yoyo: true, repeat: 1, duration: 0.18, ease: "power2.out" });
+    }
+  );
+}
+
 function tiltToMotion(rawTiltX, rawTiltY) {
   smoothedTilt = {
-    x: smoothedTilt.x * 0.68 + clamp(rawTiltX, -1, 1) * 0.32,
-    y: smoothedTilt.y * 0.68 + clamp(rawTiltY, -1, 1) * 0.32
+    x: smoothedTilt.x * 0.58 + clamp(rawTiltX, -1, 1) * 0.42,
+    y: smoothedTilt.y * 0.58 + clamp(rawTiltY, -1, 1) * 0.42
   };
 
   const tiltAmount = clamp(Math.hypot(smoothedTilt.x, smoothedTilt.y), 0, 1);
 
   return {
-    energy: 0.58 + tiltAmount * 0.34,
+    energy: 0.62 + tiltAmount * 0.34,
     shake: tiltAmount,
     tiltX: smoothedTilt.x,
     tiltY: smoothedTilt.y
   };
-}
-
-// Device orientation gives the participant direct puppet steering with the phone rotation.
-function orientationToMotion(event) {
-  latestOrientationAt = performance.now();
-  const gamma = event.gamma ?? 0;
-  const beta = event.beta ?? 0;
-
-  return tiltToMotion(gamma / 38, beta / 38);
-}
-
-// Some browsers expose only motion acceleration; use gravity as a fallback tilt source.
-function accelerationToMotion(event) {
-  const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
-  const x = acceleration.x ?? 0;
-  const y = acceleration.y ?? 0;
-  const z = acceleration.z ?? 0;
-  const currentVector = { x, y, z };
-
-  lastMotionVector = currentVector;
-  return tiltToMotion(x / 8.8, y / 8.8);
 }
 
 function sendMotion(motion) {
@@ -207,22 +144,34 @@ function sendMotion(motion) {
   }
 
   const now = performance.now();
-  if (now - lastMotionSentAt < 120) {
+  if (now - lastMotionSentAt < 70) {
     return;
   }
 
   lastMotionSentAt = now;
-  energyFill.style.width = `${Math.round(Math.hypot(motion.tiltX, motion.tiltY) * 100)}%`;
-  orbPreview.style.transform = `translate(${motion.tiltX * 14}px, ${motion.tiltY * 14}px) scale(${0.98 + motion.shake * 0.14})`;
+  characterEl.style.transform = `translate(${motion.tiltX * 18}px, ${motion.tiltY * 18}px) rotate(${motion.tiltX * 8}deg)`;
   send({ type: "user.motion", ...motion });
 }
 
+function orientationToMotion(event) {
+  latestOrientationAt = performance.now();
+  return tiltToMotion((event.gamma ?? 0) / 28, (event.beta ?? 0) / 28);
+}
+
+function accelerationToMotion(event) {
+  const acceleration = event.accelerationIncludingGravity ?? event.acceleration ?? {};
+  return tiltToMotion((acceleration.x ?? 0) / 7.2, (acceleration.y ?? 0) / 7.2);
+}
+
 async function enableMotion() {
-  // iOS requires sensor permission requests to happen inside a user gesture.
+  if (motionEnabled) {
+    return;
+  }
+
   if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
     const permission = await DeviceOrientationEvent.requestPermission();
     if (permission !== "granted") {
-      motionHint.textContent = "No se concedio permiso de orientacion. Mantén presionado el boton para probar.";
+      setNotice("Activa orientacion para mover tu puppet.");
       return;
     }
   }
@@ -237,35 +186,50 @@ async function enableMotion() {
       sendMotion(accelerationToMotion(event));
     }
   });
-  motionButton.textContent = "Control activo";
-  motionHint.textContent = "Inclina el celular suavemente para empujar tu personaje.";
+  motionEnabled = true;
 }
 
-motionButton.addEventListener("click", enableMotion);
+function receive(event) {
+  const message = JSON.parse(event.data);
 
-backToInstruments.addEventListener("click", () => {
-  selectedInstrument = null;
-  assignedUser = null;
-  chordPanel.hidden = true;
-  motionPanel.hidden = true;
-  setNotice("Elige otro instrumento.");
-});
-
-// Manual fallback for laptops and for quick tests when sensor data is sparse.
-motionButton.addEventListener("pointerdown", () => {
-  fallbackPulse = 1;
-});
-
-motionButton.addEventListener("pointerup", () => {
-  fallbackPulse = 0;
-  sendMotion(tiltToMotion(0, 0));
-});
-
-setInterval(() => {
-  if (fallbackPulse > 0) {
-    fallbackTiltPhase += 0.42;
-    sendMotion(tiltToMotion(Math.cos(fallbackTiltPhase) * 0.85, Math.sin(fallbackTiltPhase) * 0.85));
+  if (message.instruments) {
+    instruments = message.instruments;
+    renderInstrumentMenu();
   }
-}, 180);
 
+  if (message.type === "user.assigned") {
+    assignedUser = message.user;
+    renderRadialMenu([{ label: message.user.chordLabel, color: message.user.color }], () => {
+      assignedUser = null;
+      selectedInstrument ? renderChordMenu(selectedInstrument) : renderInstrumentMenu();
+    });
+  }
+
+  if (message.state && assignedUser && !message.state.users.some((user) => user.id === assignedUser.id)) {
+    assignedUser = null;
+    selectedInstrument ? renderChordMenu(selectedInstrument) : renderInstrumentMenu();
+  }
+}
+
+function connect() {
+  clearTimeout(reconnectTimer);
+  socket = new WebSocket(socketUrl());
+
+  socket.addEventListener("open", () => setNotice(""));
+  socket.addEventListener("message", receive);
+  socket.addEventListener("close", () => {
+    setNotice("Reconectando");
+    reconnectTimer = setTimeout(connect, 1200);
+  });
+}
+
+window.addEventListener("resize", () => {
+  if (assignedUser) {
+    return;
+  }
+
+  selectedInstrument ? renderChordMenu(selectedInstrument) : renderInstrumentMenu();
+});
+
+renderCharacter();
 connect();
