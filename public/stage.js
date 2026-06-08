@@ -53,9 +53,12 @@ function seededNumber(id) {
 }
 
 function worldSize() {
+  const bounds = worldEl.getBoundingClientRect();
+  const fallbackSize = Math.max(360, Math.min(window.innerWidth || 960, window.innerHeight || 960));
+
   return {
-    width: worldEl.clientWidth,
-    height: worldEl.clientHeight
+    width: worldEl.clientWidth || bounds.width || fallbackSize,
+    height: worldEl.clientHeight || bounds.height || fallbackSize
   };
 }
 
@@ -77,6 +80,23 @@ function randomStagePosition() {
   return {
     x: center.x + Math.cos(angle) * radius,
     y: center.y + Math.sin(angle) * radius
+  };
+}
+
+function demoStagePosition(index) {
+  const { width, height } = worldSize();
+  const columns = 5;
+  const rows = Math.ceil(DEMO_PUPPET_COUNT / columns);
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  const cellWidth = width / (columns + 1);
+  const cellHeight = height / (rows + 1);
+  const wobbleX = Math.sin(index * 1.7) * cellWidth * 0.18;
+  const wobbleY = Math.cos(index * 1.3) * cellHeight * 0.14;
+
+  return {
+    x: cellWidth * (column + 1) + wobbleX,
+    y: cellHeight * (row + 1) + wobbleY
   };
 }
 
@@ -321,7 +341,7 @@ function createPuppetArt(user, size) {
 
 function createPuppet(user) {
   const radius = 44 + user.energy * 26;
-  const { x, y } = randomStagePosition();
+  const { x, y } = user.demoIndex === undefined ? randomStagePosition() : demoStagePosition(user.demoIndex);
   const body = Bodies.circle(x, y, radius, {
     restitution: 0.94,
     frictionAir: 0.038
@@ -436,6 +456,7 @@ function createDemoPuppets() {
     createPuppet({
       id: `demo-${index}`,
       demo: true,
+      demoIndex: index,
       instrumentId,
       chordId,
       instrumentLabel: "Demo",

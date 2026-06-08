@@ -27,6 +27,8 @@ body {
 
 .floor-page {
   display: grid;
+  width: 100vw;
+  height: 100vh;
   min-height: 100vh;
   place-items: center;
   overflow: hidden;
@@ -127,15 +129,15 @@ h2 {
 
 .floor-shell {
   display: grid;
-  width: min(100vw, 100vh);
-  aspect-ratio: 1;
+  width: 100vmin;
+  height: 100vmin;
   place-items: stretch;
 }
 
 .floor-world {
   width: 100%;
-  min-height: auto;
-  aspect-ratio: 1;
+  height: 100%;
+  min-height: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -371,8 +373,8 @@ h2 {
 
 .stage-world.floor-world {
   width: 100%;
-  min-height: auto;
-  aspect-ratio: 1;
+  height: 100%;
+  min-height: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
