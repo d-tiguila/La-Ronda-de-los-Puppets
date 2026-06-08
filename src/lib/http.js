@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 const publicDir = fileURLToPath(new URL("../../public/", import.meta.url));
 const vendorFiles = new Map([
   ["/vendor/matter.min.js", fileURLToPath(new URL("../../node_modules/matter-js/build/matter.min.js", import.meta.url))],
-  ["/vendor/gsap.min.js", fileURLToPath(new URL("../../node_modules/gsap/dist/gsap.min.js", import.meta.url))]
+  ["/vendor/gsap.min.js", fileURLToPath(new URL("../../node_modules/gsap/dist/gsap.min.js", import.meta.url))],
+  ["/vendor/paper-full.min.js", fileURLToPath(new URL("../../node_modules/paper/dist/paper-full.min.js", import.meta.url))]
 ]);
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
