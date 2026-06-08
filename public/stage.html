@@ -3,29 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Escenario Sonoro</title>
+    <title>Muppet Choir Render</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body class="stage-page">
-    <main class="stage-shell">
-      <section class="stage-toolbar" aria-label="Estado del escenario">
-        <div>
-          <p class="eyebrow">Coro colectivo</p>
-          <h1>Muppet Choir</h1>
-        </div>
-        <div class="stage-stats">
-          <button id="pauseButton" class="stage-control" type="button" aria-pressed="false">Pausa</button>
-          <span id="stageSocket">Conectando</span>
-          <span id="userCount">0 flores</span>
-          <span id="tdState">TouchDesigner sin conectar</span>
-        </div>
-      </section>
-
-      <section id="stageWorld" class="stage-world" aria-label="Coro muppet colectivo">
+  <body class="floor-page">
+    <main class="floor-shell">
+      <section id="stageWorld" class="stage-world floor-world" aria-label="Coro muppet para proyeccion">
         <div id="playhead" class="radial-wave" aria-hidden="true"></div>
-        <div id="emptyState" class="empty-state">
-          Abre la pagina en un celular, elige un instrumento y manda un muppet al show.
-        </div>
       </section>
     </main>
 
